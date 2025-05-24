@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="es-ES">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Simulador de Crédito Avanzado</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <style>
+    /* Custom styles for the body and font */
+    body {
+      font-family: 'Inter', sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+    /* Hide default file input button and style its label */
+    input[type="file"] {
+      display: none;
+    }
+    .custom-file-upload {
+      @apply inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 cursor-pointer;
+    }
+  </style>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
+  <div class="container bg-white shadow-xl rounded-xl p-8 md:p-10 lg:p-12 max-w-4xl w-full mx-auto my-8">
+    <h1 class="text-4xl font-extrabold text-center text-gray-900 mb-8">Simulador de Crédito</h1>
+
+    <div class="mb-6">
+      <label for="arquivoExcel" class="block text-lg font-semibold text-gray-800 mb-2">Cargar Hoja de Cálculo de Productos (.xlsx)</label>
+      <input type="file" id="arquivoExcel" accept=".xlsx">
+      <label for="arquivoExcel" class="custom-file-upload">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+          <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" />
+        </svg>
+        Seleccionar Archivo Excel
+      </label>
+      <span id="fileName" class="ml-3 text-gray-600">Ningún archivo seleccionado</span>
+      <div id="loadingIndicator" class="hidden mt-2 text-blue-600 font-medium">Cargando hoja de cálculo...</div>
+    </div>
+
+    <h3 class="text-2xl font-semibold text-gray-800 mb-4 mt-6">Productos</h3>
+    <div id="produtos" class="space-y-4"></div>
+    <button onclick="adicionarProduto()" class="mt-4 w-full md:w-auto bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg shadow-md transition duration-200 ease-in-out">
+      Agregar Producto
+    </button>
+
+    <h3 class="text-2xl font-semibold text-gray-800 mb-4 mt-6">Opciones de Cuotas</h3>
+    <div id="opcoesParcelamento" class="space-y-4"></div>
+    <button onclick="adicionarParcela()" class="mt-4 w-full md:w-auto bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg shadow-md transition duration-200 ease-in-out">
+      Agregar Opción de Cuotas
+    </button>
+
+    <div class="flex flex-col md:flex-row gap-4 mt-8">
+      <button onclick="calcularParcelas()" class="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg shadow-md transition duration-200 ease-in-out">
+        Calcular Cuotas
+      </button>
+      <button onclick="gerarPDF()" class="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 px-6 rounded-lg shadow-md transition duration-200 ease-in-out">
+        Generar PDF
+      </button>
+    </div>
+
+    <div class="resumo bg-blue-50 border border-blue-200 text-blue-800 p-6 rounded-lg mt-8 shadow-inner">
+      <strong class="block text-xl font-bold mb-2">Resumen:</strong>
+      <div id="resumoContent">Ningún cálculo realizado aún.</div>
+    </div>
+    <div class="resultado bg-green-50 border border-green-200 text-green-800 p-6 rounded-lg mt-6 shadow-inner">
+      <strong class="block text-xl font-bold mb-2">Resultados Detallados:</strong>
+      <div id="resultadoContent">Ningún cálculo realizado aún.</div>
+    </div>
+
+    <div id="customModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center hidden z-50">
+      <div class="bg-white p-8 rounded-lg shadow-xl max-w-sm w-full text-center">
+        <h4 id="modalTitle" class="text-2xl font-bold mb-4 text-gray-800"></h4>
+        <p id="modalMessage" class="text-gray-700 mb-6"></p>
+        <button onclick="closeModal()" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-5 rounded-lg shadow-md transition duration-200 ease-in-out">
+          OK
+        </button>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    let indexProduto = 0;
+    let indexParcela = 0;
+    let produtos = [];
+    let opcoesParcelas = [];
+    let dadosPlanilha = [];
+
+    // Function to show custom modal
+    function showModal(title, message) {
+      document.getElementById('modalTitle').innerText = title;
+      document.getElementById('modalMessage').innerText = message;
+      document.getElementById('customModal').classList.remove('hidden');
+    }
+
+    // Function to close custom modal
+    function closeModal() {
+      document.getElementById('customModal').classList.add('hidden');
+    }
+
+    // Function to add a new product input group
+    function adicionarProduto() {
+      const div = document.createElement('div');
+      div.className = 'produto-item flex flex-col md:flex-row items-stretch md:items-center gap-4 p-4 bg-gray-50 rounded-lg shadow-sm';
+      div.innerHTML = `
+        <div class="flex-1">
+          <label for="nome_${indexProduto}" class="block text-sm font-medium text-gray-700 mb-1">Producto</label>
+          <select onchange="atualizarCusto(this, ${indexProduto})" id="nome_${indexProduto}"
+            class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+            <option value="">Seleccione un producto</option>
+            ${dadosPlanilha.map(p => `<option value="${p.codigo}">${p.codigo} - ${p.nome}</option>`).join('')}
+          </select>
+        </div>
+        <div class="flex-1">
+          <label for="custo_${indexProduto}" class="block text-sm font-medium text-gray-700 mb-1">Costo Unitario (Gs)</label>
+          <input type="number" placeholder="Costo Unitario (Gs)" id="custo_${indexProduto}" readonly
+            class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-gray-100 cursor-not-allowed sm:text-sm">
+        </div>
+        <div class="flex-1">
+          <label for="qtd_${indexProduto}" class="block text-sm font-medium text-gray-700 mb-1">Cantidad</label>
+          <input type="number" placeholder="Cantidad" id="qtd_${indexProduto}" min="1" value="1"
+            class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+        </div>
+        <button onclick="removerProduto(this)"
+          class="mt-auto bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-4 rounded-lg shadow-sm transition duration-200 ease-in-out self-end md:self-center">
+          Eliminar
+        </button>
+      `;
+      document.getElementById('produtos').appendChild(div);
+      indexProduto++;
+    }
+
+    // Function to remove a product input group
+    function removerProduto(button) {
+      button.parentElement.remove();
+    }
+
+    // Function to update product cost based on selection
+    function atualizarCusto(select, index) {
+      const produto = dadosPlanilha.find(p => String(p.codigo) === select.value); // Ensure type consistency
+      if (produto) {
+        document.getElementById(`custo_${index}`).value = produto.custo;
+      } else {
+        document.getElementById(`custo_${index}`).value = ''; // Clear if no product selected
+      }
+    }
+
+    // Function to add a new installment option input group
+    function adicionarParcela() {
+      const div = document.createElement('div');
+      div.className = 'parcela-opcao flex flex-col md:flex-row items-stretch md:items-center gap-4 p-4 bg-gray-50 rounded-lg shadow-sm';
+      div.innerHTML = `
+        <div class="flex-1">
+          <label for="parcelas_${indexParcela}" class="block text-sm font-medium text-gray-700 mb-1">Número de Cuotas</label>
+          <input type="number" placeholder="Cuotas" id="parcelas_${indexParcela}" min="1"
+            class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+        </div>
+        <button onclick="this.parentElement.remove()"
+          class="mt-auto bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-4 rounded-lg shadow-sm transition duration-200 ease-in-out self-end md:self-center">
+          Eliminar
+        </button>
+      `;
+      document.getElementById('opcoesParcelamento').appendChild(div);
+      indexParcela++;
+    }
+
+    // Function to format currency
+    function formatar(valor) {
+      return Math.round(valor).toLocaleString('de-DE'); // Using 'de-DE' for dot as thousands separator
+    }
+
+    // Main function to calculate installments
+    function calcularParcelas() {
+      produtos = [];
+      opcoesParcelas = [];
+
+      // Collect product data
+      const selects = document.querySelectorAll('[id^=nome_]');
+      selects.forEach((s, i) => {
+        const codigo = s.value;
+        const qtdInput = document.getElementById(`qtd_${i}`);
+        const custoInput = document.getElementById(`custo_${i}`);
+
+        if (!codigo || !qtdInput || !custoInput) {
+            console.warn(`Skipping incomplete product entry at index ${i}`);
+            return; // Skip if any required element is missing
+        }
+
+        const qtd = parseInt(qtdInput.value);
+        const custo = parseFloat(custoInput.value);
+
+        if (codigo && !isNaN(qtd) && qtd > 0 && !isNaN(custo) && custo >= 0) {
+          produtos.push({ codigo, qtd, custo });
+        } else {
+            showModal('Error de Entrada', 'Por favor, complete todos los campos de producto con valores válidos (cantidad > 0, costo >= 0).');
+            produtos = []; // Clear products if any invalid entry found
+            return;
+        }
+      });
+
+      // Collect installment options
+      const parcelasInputs = document.querySelectorAll('[id^=parcelas_]');
+      parcelasInputs.forEach(p => {
+        const parcelas = parseInt(p.value);
+        if (!isNaN(parcelas) && parcelas > 0) {
+          opcoesParcelas.push({ parcelas });
+        } else {
+            showModal('Error de Entrada', 'Por favor, complete todos los campos de cuotas con valores válidos (cuotas > 0).');
+            opcoesParcelas = []; // Clear options if any invalid entry found
+            return;
+        }
+      });
+
+      if (produtos.length === 0 || opcoesParcelas.length === 0) {
+        showModal('Aviso', 'Por favor, agregue al menos un producto y una opción de cuotas antes de calcular.');
+        document.getElementById('resultadoContent').innerHTML = 'Ningún cálculo realizado aún.';
+        document.getElementById('resumoContent').innerHTML = 'Ningún cálculo realizado aún.';
+        return;
+      }
+
+      let resultadoHTML = '';
+      let resumoHTML = '';
+
+      opcoesParcelas.forEach(op => {
+        resultadoHTML += `<h4 class="text-xl font-semibold text-gray-700 mb-2 mt-4">${op.parcelas} Cuotas</h4>`;
+        let totalParcela = 0;
+        produtos.forEach(prod => {
+          const info = dadosPlanilha.find(p => String(p.codigo) === String(prod.codigo)); // Ensure type consistency
+          if (!info) {
+            console.error(`Product info not found for code: ${prod.codigo}`);
+            return; // Skip if product info is missing
+          }
+          const margemKey = `margem_${op.parcelas}`;
+          const margem = info[margemKey] !== undefined ? parseFloat(info[margemKey]) : 0; // Get margin for specific installment, default to 0
+          
+          const total = prod.custo * prod.qtd;
+          const totalComMargem = total * (1 + margem / 100);
+          const valorParcela = totalComMargem / op.parcelas;
+          totalParcela += valorParcela;
+          resultadoHTML += `<p class="text-gray-700">${info.nome} (CANT: ${prod.qtd}) → ${op.parcelas} x Gs ${formatar(valorParcela)}</p>`;
+        });
+        resultadoHTML += `<p class="text-lg font-bold text-gray-800 mt-2">Total ${op.parcelas} x Gs <strong>${formatar(totalParcela)}</strong></p>`;
+        resumoHTML += `<p class="text-gray-700">${op.parcelas} cuotas de Gs <strong>${formatar(totalParcela)}</strong></p>`;
+      });
+
+      document.getElementById('resultadoContent').innerHTML = resultadoHTML;
+      document.getElementById('resumoContent').innerHTML = `<strong>Resumen:</strong><br>${resumoHTML}`;
+    }
+
+    // Function to generate PDF
+    async function gerarPDF() {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+      let y = 20; // Initial Y position
+
+      // Set font and size for the main title
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(20);
+      doc.text("Presupuesto de Productos", 105, y, { align: "center" }); // Centered title
+      y += 20; // Increase Y for spacing
+
+      if (produtos.length === 0 || opcoesParcelas.length === 0) {
+        showModal('Aviso', 'Por favor, agregue productos y opciones de cuotas antes de generar el PDF.');
+        return;
+      }
+
+      opcoesParcelas.forEach(op => {
+        // Check for new page before adding new section
+        if (y + 40 > doc.internal.pageSize.height - 20) { // If less than 40 units until bottom margin
+          doc.addPage();
+          y = 20;
+        }
+
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(16);
+        doc.text(`${op.parcelas} Cuotas`, 20, y);
+        y += 10;
+
+        // Table Headers
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(10); // Smaller font for table headers
+
+        const startY = y;
+        const colX = [20, 95, 120, 155]; // X positions for columns
+        const colWidth = [75, 25, 35, 45]; // Widths for columns
+
+        // Draw header row background
+        doc.setFillColor(230, 230, 230); // Light gray background
+        doc.rect(colX[0], startY, colWidth[0] + colWidth[1] + colWidth[2] + colWidth[3], 7, "F");
+
+        doc.text("Producto", colX[0] + 2, startY + 5);
+        doc.text("Cant.", colX[1] + 2, startY + 5);
+        doc.text("Cuotas", colX[2] + 2, startY + 5);
+        doc.text("Valor Cuota", colX[3] + 2, startY + 5);
+        y += 7; // Move Y past header row
+
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(10); // Normal font for table content
+
+        // Draw top border of the table
+        doc.line(colX[0], startY, colX[0] + colWidth[0] + colWidth[1] + colWidth[2] + colWidth[3], startY);
+
+        let totalParcela = 0;
+        produtos.forEach(prod => {
+          // Check for new page for each row
+          if (y + 7 > doc.internal.pageSize.height - 20) { // If less than 7 units until bottom margin
+            doc.addPage();
+            y = 20;
+            // Redraw headers on new page
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(10);
+            doc.setFillColor(230, 230, 230);
+            doc.rect(colX[0], y, colWidth[0] + colWidth[1] + colWidth[2] + colWidth[3], 7, "F");
+            doc.text("Producto", colX[0] + 2, y + 5);
+            doc.text("Cant.", colX[1] + 2, y + 5);
+            doc.text("Cuotas", colX[2] + 2, y + 5);
+            doc.text("Valor Cuota", colX[3] + 2, y + 5);
+            y += 7;
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(10);
+            // Draw top border for the table on new page
+            doc.line(colX[0], y - 7, colX[0] + colWidth[0] + colWidth[1] + colWidth[2] + colWidth[3], y - 7);
+          }
+
+          const info = dadosPlanilha.find(p => String(p.codigo) === String(prod.codigo));
+          if (!info) {
+            console.error(`Product info not found for code: ${prod.codigo}`);
+            return;
+          }
+          const margemKey = `margem_${op.parcelas}`;
+          const margem = info[margemKey] !== undefined ? parseFloat(info[margemKey]) : 0;
+
+          const total = prod.custo * prod.qtd;
+          const totalComMargem = total * (1 + margem / 100);
+          const valorParcela = totalComMargem / op.parcelas;
+          totalParcela += valorParcela;
+
+          // Draw row content
+          doc.text(info.nome, colX[0] + 2, y + 5);
+          doc.text(String(prod.qtd), colX[1] + 2, y + 5);
+          doc.text(String(op.parcelas), colX[2] + 2, y + 5);
+          doc.text(`Gs ${formatar(valorParcela)}`, colX[3] + 2, y + 5);
+          y += 7; // Move Y for next row
+
+          // Draw horizontal line for row
+          doc.line(colX[0], y, colX[0] + colWidth[0] + colWidth[1] + colWidth[2] + colWidth[3], y);
+        });
+
+        // Draw vertical lines for the table
+        doc.line(colX[0], startY, colX[0], y); // Left border
+        doc.line(colX[0] + colWidth[0], startY, colX[0] + colWidth[0], y);
+        doc.line(colX[0] + colWidth[0] + colWidth[1], startY, colX[0] + colWidth[0] + colWidth[1], y);
+        doc.line(colX[0] + colWidth[0] + colWidth[1] + colWidth[2], startY, colX[0] + colWidth[0] + colWidth[1] + colWidth[2], y);
+        doc.line(colX[0] + colWidth[0] + colWidth[1] + colWidth[2] + colWidth[3], startY, colX[0] + colWidth[0] + colWidth[1] + colWidth[2] + colWidth[3], y); // Right border
+
+        // Add total for the installment option
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(12);
+        y += 5; // Small spacing before total
+        doc.text(`Total ${op.parcelas} x Gs ${formatar(totalParcela)}`, 20, y);
+        y += 15; // Spacing after total for next section
+      });
+
+      doc.save("presupuesto.pdf");
+      showModal('PDF Generado', '¡El archivo "presupuesto.pdf" fue generado con éxito!');
+    }
+
+    // Event listener for Excel file upload
+    document.getElementById("arquivoExcel").addEventListener("change", function (e) {
+      const file = e.target.files[0];
+      const fileNameSpan = document.getElementById('fileName');
+      const loadingIndicator = document.getElementById('loadingIndicator');
+
+      if (!file) {
+        fileNameSpan.innerText = 'Ningún archivo seleccionado';
+        return;
+      }
+
+      fileNameSpan.innerText = file.name;
+      loadingIndicator.classList.remove('hidden'); // Show loading indicator
+
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        try {
+          const data = new Uint8Array(e.target.result);
+          const workbook = XLSX.read(data, { type: "array" });
+          const sheet = workbook.Sheets[workbook.SheetNames[0]];
+          const json = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+
+          // Assuming header row is row 0, data starts from row 1
+          dadosPlanilha = json.slice(1).map(row => {
+            const produto = {
+              codigo: row[0], // Column A
+              custo: parseFloat(row[1]), // Column B
+              nome: row[2] // Column C
+            };
+            // Margins start from Column D (index 3)
+            for (let i = 1; i <= 20; i++) {
+              // Ensure we don't go out of bounds for rows that might have fewer columns
+              produto[`margem_${i}`] = parseFloat(row[2 + i]) || 0;
+            }
+            return produto;
+          });
+
+          loadingIndicator.classList.add('hidden'); // Hide loading indicator
+          showModal('Éxito', '¡Hoja de cálculo cargada con éxito!');
+          // Re-render product select options if any products are already added
+          document.querySelectorAll('[id^=nome_]').forEach((selectElement, i) => {
+              const currentSelectedValue = selectElement.value; // Preserve current selection
+              selectElement.innerHTML = `<option value="">Seleccione un producto</option>` +
+                  dadosPlanilha.map(p => `<option value="${p.codigo}">${p.codigo} - ${p.nome}</option>`).join('');
+              selectElement.value = currentSelectedValue; // Restore selection
+              atualizarCusto(selectElement, i); // Update cost based on restored selection
+          });
+
+        } catch (error) {
+          loadingIndicator.classList.add('hidden'); // Hide loading indicator
+          showModal('Error al Cargar Hoja de Cálculo', `Ocurrió un error al leer la hoja de cálculo: ${error.message}. Verifique el formato del archivo.`);
+          console.error("Error reading Excel file:", error);
+        }
+      };
+      reader.onerror = function (error) {
+        loadingIndicator.classList.add('hidden'); // Hide loading indicator
+        showModal('Error de Lectura', 'No fue posible leer el archivo. Intente de nuevo.');
+        console.error("FileReader error:", error);
+      };
+      reader.readAsArrayBuffer(file);
+    });
+
+    // Initial product and installment options when page loads
+    window.onload = function() {
+        adicionarProduto();
+        adicionarParcela();
+    };
+  </script>
+</body>
+</html>
