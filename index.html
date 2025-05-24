@@ -347,6 +347,11 @@
       const doc = new jsPDF();
       let y = 20;
 
+      // Largura total da tabela e cálculo para centralização
+      const tableWidth = 170; // Largura total da tabela (em mm)
+      const pageCenter = doc.internal.pageSize.width / 2;
+      const startX = pageCenter - (tableWidth / 2);
+
       // Adiciona o logo se estiver carregado
       if (logoDataUrl) {
           const logoWidth = 50;
@@ -359,7 +364,7 @@
 
       doc.setFont("helvetica", "bold");
       doc.setFontSize(20);
-      doc.text("Presupuesto de Productos", 105, y, { align: "center" });
+      doc.text("Presupuesto de Productos", pageCenter, y, { align: "center" }); // Centraliza o título
       y += 20;
 
       if (produtos.length === 0) {
@@ -388,37 +393,36 @@
           }
           doc.setFont("helvetica", "bold");
           doc.setFontSize(20);
-          doc.text("Presupuesto de Productos", 105, y, { align: "center" });
+          doc.text("Presupuesto de Productos", pageCenter, y, { align: "center" });
           y += 20;
         }
 
         doc.setFont("helvetica", "bold");
         doc.setFontSize(16);
-        doc.text("Al Contado", 20, y);
+        doc.text("Al Contado", startX, y); // Centraliza o subtítulo "Al Contado" com a tabela
         y += 10;
 
         doc.setFont("helvetica", "bold");
         doc.setFontSize(10);
 
-        // AUMENTADO LARGURA DA COLUNA PRODUTO E AJUSTADO AS OUTRAS
-        const colXAlContado = [20, 120, 165]; 
-        const colWidthAlContado = [100, 20, 45]; 
+        // Larguras das colunas para "Al Contado" (somam `tableWidth`)
+        const colWidthAlContado = [tableWidth * 0.58, tableWidth * 0.12, tableWidth * 0.30]; 
+        const colXAlContado = [startX, startX + colWidthAlContado[0], startX + colWidthAlContado[0] + colWidthAlContado[1]];
 
         doc.setFillColor(230, 230, 230);
-        doc.rect(colXAlContado[0], y, colWidthAlContado[0] + colWidthAlContado[1] + colWidthAlContado[2], 7, "F");
+        doc.rect(startX, y, tableWidth, 7, "F");
 
         doc.text("Producto", colXAlContado[0] + 2, y + 5);
         doc.text("Cant.", colXAlContado[1] + 2, y + 5);
         doc.text("Valor", colXAlContado[2] + 2, y + 5);
         let startYAlContado = y + 7;
-        y += 7; // Ajuste para a linha de baixo do cabeçalho
+        y += 7; 
 
         doc.setFont("helvetica", "normal");
-        // doc.line(colXAlContado[0], startYAlContado, colXAlContado[0] + colWidthAlContado[0] + colWidthAlContado[1] + colWidthAlContado[2], startYAlContado);
-
+        
         let totalAlContado = 0;
         produtos.forEach(prod => {
-          if (y + 20 > doc.internal.pageSize.height - 20) { // Verifica se há espaço antes de adicionar a linha
+          if (y + 20 > doc.internal.pageSize.height - 20) { 
             doc.addPage();
             y = 20;
             if (logoDataUrl) {
@@ -431,19 +435,17 @@
             }
             doc.setFont("helvetica", "bold");
             doc.setFontSize(20);
-            doc.text("Presupuesto de Productos", 105, y, { align: "center" });
+            doc.text("Presupuesto de Productos", pageCenter, y, { align: "center" });
             y += 20;
 
             doc.setFont("helvetica", "bold");
             doc.setFontSize(10);
             doc.setFillColor(230, 230, 230);
-            doc.rect(colXAlContado[0], y, colWidthAlContado[0] + colWidthAlContado[1] + colWidthAlContado[2], 7, "F");
+            doc.rect(startX, y, tableWidth, 7, "F");
             doc.text("Producto", colXAlContado[0] + 2, y + 5);
             doc.text("Cant.", colXAlContado[1] + 2, y + 5);
             doc.text("Valor", colXAlContado[2] + 2, y + 5);
             y += 7;
-            // doc.setFont("helvetica", "normal"); // Já está normal
-            // doc.line(colXAlContado[0], y - 7, colXAlContado[0] + colWidthAlContado[0] + colWidthAlContado[1] + colWidthAlContado[2], y - 7);
           }
 
           const info = dadosProdutos.find(p => String(p.codigo) === String(prod.codigo));
@@ -454,8 +456,7 @@
 
           const productName = info.nome;
           
-          // QUEBRA DE TEXTO E CÁLCULO DA ALTURA DA LINHA
-          const splitText = doc.splitTextToSize(productName, colWidthAlContado[0] - 4); // Margem interna de 4
+          const splitText = doc.splitTextToSize(productName, colWidthAlContado[0] - 4); 
           const textHeight = doc.getLineHeight() / doc.internal.scaleFactor;
           const lineSpacing = 1; 
           
@@ -465,26 +466,30 @@
               currentYForText += (textHeight + lineSpacing);
           });
 
-          doc.text(String(prod.qtd), colXAlContado[1] + 2, y + 5 + (splitText.length > 1 ? (splitText.length -1) * (textHeight + lineSpacing) / 2 : 0)); // Centraliza verticalmente
-          doc.text(`Gs ${formatar(totalComMargem)}`, colXAlContado[2] + 2, y + 5 + (splitText.length > 1 ? (splitText.length -1) * (textHeight + lineSpacing) / 2 : 0)); // Centraliza verticalmente
+          // Calcula a diferença de altura para centralizar o texto nas outras colunas
+          const totalTextHeight = (splitText.length * textHeight) + ((splitText.length - 1) * lineSpacing);
+          const rowHeight = Math.max(10, totalTextHeight + 4); // Altura mínima + margem interna
+          const verticalCenterOffset = (rowHeight - textHeight) / 2;
+
+          doc.text(String(prod.qtd), colXAlContado[1] + 2, y + verticalCenterOffset); 
+          doc.text(`Gs ${formatar(totalComMargem)}`, colXAlContado[2] + 2, y + verticalCenterOffset); 
           
-          const rowHeight = Math.max(10, (splitText.length * (textHeight + lineSpacing)) + 2); // Garante altura mínima
           y += rowHeight; 
           
-          doc.line(colXAlContado[0], y, colXAlContado[0] + colWidthAlContado[0] + colWidthAlContado[1] + colWidthAlContado[2], y);
+          doc.line(startX, y, startX + tableWidth, y);
         });
 
         // Desenha as linhas verticais após todas as linhas da tabela
         doc.line(colXAlContado[0], startYAlContado, colXAlContado[0], y);
-        doc.line(colXAlContado[0] + colWidthAlContado[0], startYAlContado, colXAlContado[0] + colWidthAlContado[0], y);
-        doc.line(colXAlContado[0] + colWidthAlContado[0] + colWidthAlContado[1], startYAlContado, colXAlContado[0] + colWidthAlContado[0] + colWidthAlContado[1], y);
-        doc.line(colXAlContado[0] + colWidthAlContado[0] + colWidthAlContado[1] + colWidthAlContado[2], startYAlContado, colXAlContado[0] + colWidthAlContado[0] + colWidthAlContado[1] + colWidthAlContado[2], y);
+        doc.line(colXAlContado[1], startYAlContado, colXAlContado[1], y);
+        doc.line(colXAlContado[2], startYAlContado, colXAlContado[2], y);
+        doc.line(startX + tableWidth, startYAlContado, startX + tableWidth, y);
 
 
         doc.setFont("helvetica", "bold");
         doc.setFontSize(12);
         y += 5;
-        doc.text(`Total Al Contado Gs ${formatar(totalAlContado)}`, 20, y);
+        doc.text(`Total Al Contado Gs ${formatar(totalAlContado)}`, startX, y); // Centraliza o total com a tabela
         y += 15;
       }
 
@@ -503,24 +508,24 @@
           }
           doc.setFont("helvetica", "bold");
           doc.setFontSize(20);
-          doc.text("Presupuesto de Productos", 105, y, { align: "center" });
+          doc.text("Presupuesto de Productos", pageCenter, y, { align: "center" });
           y += 20;
         }
 
         doc.setFont("helvetica", "bold");
         doc.setFontSize(16);
-        doc.text(`${op.parcelas} Cuotas`, 20, y);
+        doc.text(`${op.parcelas} Cuotas`, startX, y); // Centraliza o subtítulo com a tabela
         y += 10;
 
         doc.setFont("helvetica", "bold");
         doc.setFontSize(10);
 
-        // AUMENTADO LARGURA DA COLUNA PRODUTO E AJUSTADO AS OUTRAS
-        const colX = [20, 120, 145, 170];
-        const colWidth = [100, 20, 25, 45];
+        // Larguras das colunas para Parcelas (somam `tableWidth`)
+        const colWidth = [tableWidth * 0.5, tableWidth * 0.1, tableWidth * 0.15, tableWidth * 0.25];
+        const colX = [startX, startX + colWidth[0], startX + colWidth[0] + colWidth[1], startX + colWidth[0] + colWidth[1] + colWidth[2]];
 
         doc.setFillColor(230, 230, 230);
-        doc.rect(colX[0], y, colWidth[0] + colWidth[1] + colWidth[2] + colWidth[3], 7, "F");
+        doc.rect(startX, y, tableWidth, 7, "F");
 
         doc.text("Producto", colX[0] + 2, y + 5);
         doc.text("Cant.", colX[1] + 2, y + 5);
@@ -530,8 +535,7 @@
         y += 7;
 
         doc.setFont("helvetica", "normal");
-        // doc.line(colX[0], startY, colX[0] + colWidth[0] + colWidth[1] + colWidth[2] + colWidth[3], startY);
-
+        
         let totalParcela = 0;
         produtos.forEach(prod => {
           if (y + 20 > doc.internal.pageSize.height - 20) {
@@ -547,20 +551,18 @@
             }
             doc.setFont("helvetica", "bold");
             doc.setFontSize(20);
-            doc.text("Presupuesto de Productos", 105, y, { align: "center" });
+            doc.text("Presupuesto de Productos", pageCenter, y, { align: "center" });
             y += 20;
 
             doc.setFont("helvetica", "bold");
             doc.setFontSize(10);
             doc.setFillColor(230, 230, 230);
-            doc.rect(colX[0], y, colWidth[0] + colWidth[1] + colWidth[2] + colWidth[3], 7, "F");
+            doc.rect(startX, y, tableWidth, 7, "F");
             doc.text("Producto", colX[0] + 2, y + 5);
             doc.text("Cant.", colX[1] + 2, y + 5);
             doc.text("Cuotas", colX[2] + 2, y + 5);
             doc.text("Valor Cuota", colX[3] + 2, y + 5);
             y += 7;
-            // doc.setFont("helvetica", "normal"); // Já está normal
-            // doc.line(colX[0], y - 7, colX[0] + colWidth[0] + colWidth[1] + colWidth[2] + colWidth[3], y - 7);
           }
 
           const info = dadosProdutos.find(p => String(p.codigo) === String(prod.codigo));
@@ -573,8 +575,7 @@
           totalParcela += valorParcela;
 
           const productName = info.nome;
-          // QUEBRA DE TEXTO E CÁLCULO DA ALTURA DA LINHA
-          const splitText = doc.splitTextToSize(productName, colWidth[0] - 4); // Margem interna de 4
+          const splitText = doc.splitTextToSize(productName, colWidth[0] - 4); 
           const textHeight = doc.getLineHeight() / doc.internal.scaleFactor;
           const lineSpacing = 1; 
           
@@ -583,29 +584,32 @@
               doc.text(line, colX[0] + 2, currentYForText);
               currentYForText += (textHeight + lineSpacing);
           });
-
-          doc.text(String(prod.qtd), colX[1] + 2, y + 5 + (splitText.length > 1 ? (splitText.length -1) * (textHeight + lineSpacing) / 2 : 0)); // Centraliza verticalmente
-          doc.text(String(op.parcelas), colX[2] + 2, y + 5 + (splitText.length > 1 ? (splitText.length -1) * (textHeight + lineSpacing) / 2 : 0)); // Centraliza verticalmente
-          doc.text(`Gs ${formatar(valorParcela)}`, colX[3] + 2, y + 5 + (splitText.length > 1 ? (splitText.length -1) * (textHeight + lineSpacing) / 2 : 0)); // Centraliza verticalmente
           
-          const rowHeight = Math.max(10, (splitText.length * (textHeight + lineSpacing)) + 2); // Garante altura mínima
+          // Calcula a diferença de altura para centralizar o texto nas outras colunas
+          const totalTextHeight = (splitText.length * textHeight) + ((splitText.length - 1) * lineSpacing);
+          const rowHeight = Math.max(10, totalTextHeight + 4); // Altura mínima + margem interna
+          const verticalCenterOffset = (rowHeight - textHeight) / 2;
+
+          doc.text(String(prod.qtd), colX[1] + 2, y + verticalCenterOffset); 
+          doc.text(String(op.parcelas), colX[2] + 2, y + verticalCenterOffset); 
+          doc.text(`Gs ${formatar(valorParcela)}`, colX[3] + 2, y + verticalCenterOffset); 
+          
           y += rowHeight; 
           
-          doc.line(colX[0], y, colX[0] + colWidth[0] + colWidth[1] + colWidth[2] + colWidth[3], y);
+          doc.line(startX, y, startX + tableWidth, y);
         });
 
         // Desenha as linhas verticais após todas as linhas da tabela
         doc.line(colX[0], startY, colX[0], y);
-        doc.line(colX[0] + colWidth[0], startY, colX[0] + colWidth[0], y);
-        doc.line(colX[0] + colWidth[0] + colWidth[1], startY, colX[0] + colWidth[0] + colWidth[1], y);
-        doc.line(colX[0] + colWidth[0] + colWidth[1] + colWidth[2], startY, colX[0] + colWidth[0] + colWidth[1] + colWidth[2], y);
-        doc.line(colX[0] + colWidth[0] + colWidth[1] + colWidth[2] + colWidth[3], startY, colX[0] + colWidth[0] + colWidth[1] + colWidth[2] + colWidth[3], y);
-
+        doc.line(colX[1], startY, colX[1], y);
+        doc.line(colX[2], startY, colX[2], y);
+        doc.line(colX[3], startY, colX[3], y);
+        doc.line(startX + tableWidth, startY, startX + tableWidth, y);
 
         doc.setFont("helvetica", "bold");
         doc.setFontSize(12);
         y += 5;
-        doc.text(`Total ${op.parcelas} x Gs ${formatar(totalParcela)}`, 20, y);
+        doc.text(`Total ${op.parcelas} x Gs ${formatar(totalParcela)}`, startX, y); // Centraliza o total com a tabela
         y += 15;
       });
 
