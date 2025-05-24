@@ -35,13 +35,13 @@
     </div>
 
     <div class="flex flex-col md:flex-row gap-4 mt-8 mb-6">
-      <button onclick="tentarEntrarModoEdicao()" id="btnModoEdicao" class="flex-1 bg-yellow-500 hover:bg-yellow-600 text-white font-semibold py-3 px-6 rounded-lg shadow-md transition duration-200 ease-in-out">
+      <button onclick="tentarEntrarModoEdicao()" id="btnModoEdicion" class="flex-1 bg-yellow-500 hover:bg-yellow-600 text-white font-semibold py-3 px-6 rounded-lg shadow-md transition duration-200 ease-in-out">
         Entrar en Modo Edición
       </button>
     </div>
 
     <div id="painelEdicaoMargens" class="hidden bg-orange-50 border border-orange-200 text-orange-800 p-6 rounded-lg mb-8 shadow-inner">
-      <h3 class="text-2xl font-semibold text-gray-800 mb-4">Editar Margens de Lucro</h3>
+      <h3 class="text-2xl font-semibold text-gray-800 mb-4">Editar Margens de Lucro por Cuotas</h3>
       <div class="mb-4">
         <label for="selectProdutoEdicao" class="block text-sm font-medium text-gray-700 mb-1">Seleccionar Producto</label>
         <select id="selectProdutoEdicao" onchange="popularMargensEdicao()"
@@ -71,9 +71,8 @@
     <div class="mt-6 p-4 bg-purple-50 border border-purple-200 rounded-lg shadow-sm">
       <div class="flex items-center">
         <input type="checkbox" id="alContadoCheckbox" class="h-5 w-5 text-purple-600 focus:ring-purple-500 border-gray-300 rounded">
-        <label for="alContadoCheckbox" class="ml-3 block text-lg font-medium text-gray-800">Aplicar 20% al Contado</label>
+        <label for="alContadoCheckbox" class="ml-3 block text-lg font-medium text-gray-800">Mostrar Opción Al Contado</label>
       </div>
-      <p class="text-sm text-gray-600 mt-1">Si selecciona esta opción, se mostrará el precio con 20% de margen para pago al contado.</p>
     </div>
 
     <div class="flex flex-col md:flex-row gap-4 mt-8">
@@ -288,7 +287,7 @@
       let resumoHTML = '';
       let alContadoAtivo = document.getElementById('alContadoCheckbox').checked;
 
-      // Calcular "Al Contado" se o checkbox estiver marcado
+      // Calcular "Al Contado" si el checkbox está marcado
       if (alContadoAtivo) {
         resultadoHTML += `<h4 class="text-xl font-semibold text-gray-700 mb-2 mt-4">Al Contado</h4>`;
         let totalAlContado = 0;
@@ -307,7 +306,7 @@
         resumoHTML += `<p class="text-gray-700">Al Contado Gs <strong>${formatar(totalAlContado)}</strong></p>`;
       }
 
-      // Calcular as opções de parcelas
+      // Calcular las opciones de parcelas
       if (opcoesParcelas.length > 0) {
         opcoesParcelas.forEach(op => {
           resultadoHTML += `<h4 class="text-xl font-semibold text-gray-700 mb-2 mt-4">${op.parcelas} Cuotas</h4>`;
@@ -319,7 +318,7 @@
               return;
             }
 
-            // Busca a margem do JSON para o número de parcelas. Se não encontrar, assume 0.
+            // Busca la margen del JSON para el número de parcelas. Si no encuentra, asume 0.
             const margem = (info[`margem_${op.parcelas}`] !== undefined ? parseFloat(info[`margem_${op.parcelas}`]) : 0);
             
             const total = prod.custo * prod.qtd;
@@ -332,7 +331,7 @@
           resumoHTML += `<p class="text-gray-700">${op.parcelas} cuotas de Gs <strong>${formatar(totalParcela)}</strong></p>`;
         });
       } else if (!alContadoAtivo) {
-          showModal('Aviso', 'Por favor, agregue al menos una opción de cuotas o seleccione "Al Contado" antes de calcular.');
+          showModal('Aviso', 'Por favor, agregue al menos una opción de cuotas o seleccione "Mostrar Opción Al Contado" antes de calcular.');
           document.getElementById('resultadoContent').innerHTML = 'Ningún cálculo realizado aún.';
           document.getElementById('resumoContent').innerHTML = 'Ningún cálculo realizado aún.';
           return;
@@ -370,7 +369,7 @@
 
       let alContadoAtivo = document.getElementById('alContadoCheckbox').checked;
       if (opcoesParcelas.length === 0 && !alContadoAtivo) {
-          showModal('Aviso', 'Por favor, agregue al menos una opción de cuotas o seleccione "Al Contado" antes de generar el PDF.');
+          showModal('Aviso', 'Por favor, agregue al menos una opción de cuotas o seleccione "Mostrar Opción Al Contado" antes de generar el PDF.');
           return;
       }
 
@@ -609,14 +608,14 @@
 
     function toggleModoEdicao() {
       modoEdicaoAtivo = !modoEdicaoAtivo;
-      const btnModoEdicao = document.getElementById('btnModoEdicao');
+      const btnModoEdicion = document.getElementById('btnModoEdicion');
       const painelEdicao = document.getElementById('painelEdicaoMargens');
       const selectProdutoEdicao = document.getElementById('selectProdutoEdicao');
 
       if (modoEdicaoAtivo) {
-        btnModoEdicao.innerText = 'Salir del Modo Edición';
-        btnModoEdicao.classList.remove('bg-yellow-500', 'hover:bg-yellow-600');
-        btnModoEdicao.classList.add('bg-gray-500', 'hover:bg-gray-600');
+        btnModoEdicion.innerText = 'Salir del Modo Edición';
+        btnModoEdicion.classList.remove('bg-yellow-500', 'hover:bg-yellow-600');
+        btnModoEdicion.classList.add('bg-gray-500', 'hover:bg-gray-600');
         painelEdicao.classList.remove('hidden');
 
         // Popular o select de produtos no modo de edição
@@ -627,9 +626,9 @@
         document.getElementById('margensEdicao').innerHTML = '';
 
       } else {
-        btnModoEdicao.innerText = 'Entrar en Modo Edición';
-        btnModoEdicao.classList.remove('bg-gray-500', 'hover:bg-yellow-600');
-        btnModoEdicao.classList.add('bg-yellow-500', 'hover:bg-yellow-600');
+        btnModoEdicion.innerText = 'Entrar en Modo Edición';
+        btnModoEdicion.classList.remove('bg-gray-500', 'hover:bg-yellow-600');
+        btnModoEdicion.classList.add('bg-yellow-500', 'hover:bg-yellow-600');
         painelEdicao.classList.add('hidden');
       }
     }
@@ -643,18 +642,9 @@
       if (codigoProduto) {
         const produtoParaEditar = dadosProdutos.find(p => String(p.codigo) === codigoProduto);
         if (produtoParaEditar) {
-          // Adiciona a margem para "Al Contado" (fixa em 20%) como somente leitura
-          const divMargemAlContado = document.createElement('div');
-          divMargemAlContado.className = 'flex items-center gap-2';
-          divMargemAlContado.innerHTML = `
-            <label for="margem_al_contado" class="text-sm font-medium text-gray-700">Al Contado:</label>
-            <input type="number" id="margem_al_contado" value="${MARGEM_AL_CONTADO}" step="0.01"
-              class="flex-1 px-2 py-1 border border-gray-300 rounded-md shadow-sm bg-gray-200 cursor-not-allowed text-sm" readonly>
-          `;
-          margensEdicaoDiv.appendChild(divMargemAlContado);
-
-
-          for (let i = 1; i <= MAX_PARCELAS_EDIT; i++) { // Agora começa do 1 para incluir "1 parcela" como editável
+          // Não adiciona a margem para "Al Contado" aqui.
+          // Apenas as margens de parcelamento (1 a 20) serão exibidas.
+          for (let i = 1; i <= MAX_PARCELAS_EDIT; i++) { 
             const margemAtual = produtoParaEditar[`margem_${i}`] || 0;
             const divMargem = document.createElement('div');
             divMargem.className = 'flex items-center gap-2';
@@ -687,10 +677,9 @@
         return;
       }
 
-      // A margem "Al Contado" não é salva no JSON, é uma constante separada
-      // e só é aplicada se o checkbox for marcado.
+      // A margem "Al Contado" não é salva no JSON, é uma constante separada.
       // As margens de parcelamento são salvas.
-      for (let i = 1; i <= MAX_PARCELAS_EDIT; i++) { // Agora salva de 1 a MAX_PARCELAS_EDIT
+      for (let i = 1; i <= MAX_PARCELAS_EDIT; i++) { 
         const inputMargem = document.getElementById(`margem_input_${i}`);
         if (inputMargem) {
           const novaMargem = parseFloat(inputMargem.value);
@@ -794,8 +783,8 @@
                         }
                     }
 
-                    // Se não encontrou no JSON, define como 0 para parcelas.
-                    // A margem de "Al Contado" é fixa e não vem do JSON.
+                    // Si no encontró en el JSON, define como 0 para parcelas.
+                    // La margen de "Al Contado" es fija y no viene del JSON.
                     produto[`margem_${i}`] = (margemValue !== undefined && !isNaN(margemValue)) ? margemValue : 0;
                 }
                 return produto;
