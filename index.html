@@ -68,15 +68,13 @@
       Agregar Opción de Cuotas
     </button>
     
-    <div class="parcela-opcao flex flex-col md:flex-row items-stretch md:items-center gap-4 p-4 bg-yellow-50 rounded-lg shadow-sm mt-4">
-      <div class="flex-1">
-        <label for="alContadoCheckbox" class="block text-sm font-medium text-gray-700 mb-1">
-          <input type="checkbox" id="alContadoCheckbox" class="mr-2 h-4 w-4 text-yellow-600 focus:ring-yellow-500 border-gray-300 rounded">
-          Aplicar 20% de Margen para "Al Contado" (1 Cuota)
-        </label>
+    <div class="mt-6 p-4 bg-purple-50 border border-purple-200 rounded-lg shadow-sm">
+      <div class="flex items-center">
+        <input type="checkbox" id="alContadoCheckbox" class="h-5 w-5 text-purple-600 focus:ring-purple-500 border-gray-300 rounded">
+        <label for="alContadoCheckbox" class="ml-3 block text-lg font-medium text-gray-800">Aplicar 20% al Contado</label>
       </div>
+      <p class="text-sm text-gray-600 mt-1">Si selecciona esta opción, se mostrará el precio con 20% de margen para pago al contado.</p>
     </div>
-
 
     <div class="flex flex-col md:flex-row gap-4 mt-8">
       <button onclick="calcularParcelas()" class="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg shadow-md transition duration-200 ease-in-out">
@@ -278,21 +276,9 @@
             return;
         }
       });
-
-      // Adiciona a opção "Al Contado" se o checkbox estiver marcado e a opção 1 não estiver já adicionada
-      const alContadoCheckbox = document.getElementById('alContadoCheckbox');
-      const hasOneParcela = opcoesParcelas.some(op => op.parcelas === 1);
-
-      if (alContadoCheckbox.checked && !hasOneParcela) {
-        opcoesParcelas.push({ parcelas: 1, alContado: true }); // Marcamos como alContado: true
-      } else if (!alContadoCheckbox.checked && hasOneParcela) {
-          // Se o checkbox foi desmarcado e 1 parcela existe, remove a que foi marcada como alContado
-          opcoesParcelas = opcoesParcelas.filter(op => !(op.parcelas === 1 && op.alContado));
-      }
-
-
-      if (produtos.length === 0 || opcoesParcelas.length === 0) {
-        showModal('Aviso', 'Por favor, agregue al menos un producto y una opción de cuotas antes de calcular.');
+      
+      if (produtos.length === 0) {
+        showModal('Aviso', 'Por favor, agregue al menos un producto antes de calcular.');
         document.getElementById('resultadoContent').innerHTML = 'Ningún cálculo realizado aún.';
         document.getElementById('resumoContent').innerHTML = 'Ningún cálculo realizado aún.';
         return;
@@ -300,39 +286,58 @@
 
       let resultadoHTML = '';
       let resumoHTML = '';
+      let alContadoAtivo = document.getElementById('alContadoCheckbox').checked;
 
-      opcoesParcelas.forEach(op => {
-        let displayParcelas = op.parcelas;
-        let currentMargem = 0;
-
-        if (op.alContado || (op.parcelas === 1 && alContadoCheckbox.checked)) { // Verifica se é a opção Al Contado (1x)
-            displayParcelas = "Al Contado";
-            currentMargem = MARGEM_AL_CONTADO; // Usa a margem fixa para Al Contado
-        }
-
-        resultadoHTML += `<h4 class="text-xl font-semibold text-gray-700 mb-2 mt-4">${displayParcelas} Cuotas</h4>`;
-        let totalParcela = 0;
+      // Calcular "Al Contado" se o checkbox estiver marcado
+      if (alContadoAtivo) {
+        resultadoHTML += `<h4 class="text-xl font-semibold text-gray-700 mb-2 mt-4">Al Contado</h4>`;
+        let totalAlContado = 0;
         produtos.forEach(prod => {
           const info = dadosProdutos.find(p => String(p.codigo) === String(prod.codigo));
           if (!info) {
             console.error(`Product info not found for code: ${prod.codigo}`);
             return;
           }
-
-          // Se for "Al Contado", usa a margem fixa, senão usa a margem do JSON
-          const margem = (op.alContado || (op.parcelas === 1 && alContadoCheckbox.checked)) 
-                       ? currentMargem 
-                       : (info[`margem_${op.parcelas}`] !== undefined ? parseFloat(info[`margem_${op.parcelas}`]) : 0);
-          
           const total = prod.custo * prod.qtd;
-          const totalComMargem = total * (1 + margem / 100);
-          const valorParcela = totalComMargem / op.parcelas; // Divide sempre pelo número de parcelas real (1 para al contado)
-          totalParcela += valorParcela;
-          resultadoHTML += `<p class="text-gray-700">${info.nome} (CANT: ${prod.qtd}) → ${displayParcelas === "Al Contado" ? "Gs" : `${op.parcelas} x Gs`} ${formatar(valorParcela)}</p>`;
+          const totalComMargem = total * (1 + MARGEM_AL_CONTADO / 100);
+          totalAlContado += totalComMargem;
+          resultadoHTML += `<p class="text-gray-700">${info.nome} (CANT: ${prod.qtd}) → Gs ${formatar(totalComMargem)}</p>`;
         });
-        resultadoHTML += `<p class="text-lg font-bold text-gray-800 mt-2">Total ${displayParcelas === "Al Contado" ? "Gs" : `${op.parcelas} x Gs`} <strong>${formatar(totalParcela)}</strong></p>`;
-        resumoHTML += `<p class="text-gray-700">${displayParcelas === "Al Contado" ? "Al Contado" : `${op.parcelas} cuotas`} de Gs <strong>${formatar(totalParcela)}</strong></p>`;
-      });
+        resultadoHTML += `<p class="text-lg font-bold text-gray-800 mt-2">Total Al Contado Gs <strong>${formatar(totalAlContado)}</strong></p>`;
+        resumoHTML += `<p class="text-gray-700">Al Contado Gs <strong>${formatar(totalAlContado)}</strong></p>`;
+      }
+
+      // Calcular as opções de parcelas
+      if (opcoesParcelas.length > 0) {
+        opcoesParcelas.forEach(op => {
+          resultadoHTML += `<h4 class="text-xl font-semibold text-gray-700 mb-2 mt-4">${op.parcelas} Cuotas</h4>`;
+          let totalParcela = 0;
+          produtos.forEach(prod => {
+            const info = dadosProdutos.find(p => String(p.codigo) === String(prod.codigo));
+            if (!info) {
+              console.error(`Product info not found for code: ${prod.codigo}`);
+              return;
+            }
+
+            // Busca a margem do JSON para o número de parcelas. Se não encontrar, assume 0.
+            const margem = (info[`margem_${op.parcelas}`] !== undefined ? parseFloat(info[`margem_${op.parcelas}`]) : 0);
+            
+            const total = prod.custo * prod.qtd;
+            const totalComMargem = total * (1 + margem / 100);
+            const valorParcela = totalComMargem / op.parcelas;
+            totalParcela += valorParcela;
+            resultadoHTML += `<p class="text-gray-700">${info.nome} (CANT: ${prod.qtd}) → ${op.parcelas} x Gs ${formatar(valorParcela)}</p>`;
+          });
+          resultadoHTML += `<p class="text-lg font-bold text-gray-800 mt-2">Total ${op.parcelas} x Gs <strong>${formatar(totalParcela)}</strong></p>`;
+          resumoHTML += `<p class="text-gray-700">${op.parcelas} cuotas de Gs <strong>${formatar(totalParcela)}</strong></p>`;
+        });
+      } else if (!alContadoAtivo) {
+          showModal('Aviso', 'Por favor, agregue al menos una opción de cuotas o seleccione "Al Contado" antes de calcular.');
+          document.getElementById('resultadoContent').innerHTML = 'Ningún cálculo realizado aún.';
+          document.getElementById('resumoContent').innerHTML = 'Ningún cálculo realizado aún.';
+          return;
+      }
+
 
       document.getElementById('resultadoContent').innerHTML = resultadoHTML;
       document.getElementById('resumoContent').innerHTML = `<strong>Resumen:</strong><br>${resumoHTML}`;
@@ -345,32 +350,35 @@
 
       // Adiciona o logo se estiver carregado
       if (logoDataUrl) {
-          // X, Y, Largura, Altura. Ajuste os valores conforme a necessidade do seu logo
-          // Para centralizar o logo no topo: (doc.internal.pageSize.width - width) / 2
-          const logoWidth = 50; // Largura do logo no PDF
-          const logoHeight = 20; // Altura do logo no PDF (ajuste para manter a proporção)
+          const logoWidth = 50;
+          const logoHeight = 20;
           const logoX = (doc.internal.pageSize.width - logoWidth) / 2;
-          const logoY = 10; // Posição Y no topo
+          const logoY = 10;
           doc.addImage(logoDataUrl, 'PNG', logoX, logoY, logoWidth, logoHeight);
-          y = logoY + logoHeight + 10; // Ajusta o ponto de partida do texto após o logo
+          y = logoY + logoHeight + 10;
       }
-
 
       doc.setFont("helvetica", "bold");
       doc.setFontSize(20);
       doc.text("Presupuesto de Productos", 105, y, { align: "center" });
       y += 20;
 
-      if (produtos.length === 0 || opcoesParcelas.length === 0) {
-        showModal('Aviso', 'Por favor, agregue productos y opciones de cuotas antes de generar el PDF.');
+      if (produtos.length === 0) {
+        showModal('Aviso', 'Por favor, agregue productos antes de generar el PDF.');
         return;
       }
 
-      opcoesParcelas.forEach(op => {
+      let alContadoAtivo = document.getElementById('alContadoCheckbox').checked;
+      if (opcoesParcelas.length === 0 && !alContadoAtivo) {
+          showModal('Aviso', 'Por favor, agregue al menos una opción de cuotas o seleccione "Al Contado" antes de generar el PDF.');
+          return;
+      }
+
+      // Se "Al Contado" estiver ativo, adiciona ao PDF
+      if (alContadoAtivo) {
         if (y + 40 > doc.internal.pageSize.height - 20) {
           doc.addPage();
           y = 20;
-          // Repete o logo e título se a página virar
           if (logoDataUrl) {
               const logoWidth = 50; 
               const logoHeight = 20;
@@ -385,17 +393,119 @@
           y += 20;
         }
 
-        let displayParcelas = op.parcelas;
-        let currentMargem = 0;
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(16);
+        doc.text("Al Contado", 20, y);
+        y += 10;
 
-        if (op.alContado || (op.parcelas === 1 && document.getElementById('alContadoCheckbox').checked)) {
-            displayParcelas = "Al Contado";
-            currentMargem = MARGEM_AL_CONTADO; // Usa a margem fixa para Al Contado
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(10);
+
+        const startYAlContado = y;
+        const colXAlContado = [20, 100, 160]; // Ajustado para 3 colunas
+        const colWidthAlContado = [80, 25, 45]; // Ajustado para 3 colunas
+
+        doc.setFillColor(230, 230, 230);
+        doc.rect(colXAlContado[0], startYAlContado, colWidthAlContado[0] + colWidthAlContado[1] + colWidthAlContado[2], 7, "F");
+
+        doc.text("Producto", colXAlContado[0] + 2, startYAlContado + 5);
+        doc.text("Cant.", colXAlContado[1] + 2, startYAlContado + 5);
+        doc.text("Valor", colXAlContado[2] + 2, startYAlContado + 5);
+        y += 7;
+
+        doc.setFont("helvetica", "normal");
+        doc.line(colXAlContado[0], startYAlContado, colXAlContado[0] + colWidthAlContado[0] + colWidthAlContado[1] + colWidthAlContado[2], startYAlContado);
+
+        let totalAlContado = 0;
+        produtos.forEach(prod => {
+          if (y + 20 > doc.internal.pageSize.height - 20) {
+            doc.addPage();
+            y = 20;
+            if (logoDataUrl) {
+                const logoWidth = 50; 
+                const logoHeight = 20;
+                const logoX = (doc.internal.pageSize.width - logoWidth) / 2;
+                const logoY = 10;
+                doc.addImage(logoDataUrl, 'PNG', logoX, logoY, logoWidth, logoHeight);
+                y = logoY + logoHeight + 10; 
+            }
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(20);
+            doc.text("Presupuesto de Productos", 105, y, { align: "center" });
+            y += 20;
+
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(10);
+            doc.setFillColor(230, 230, 230);
+            doc.rect(colXAlContado[0], y, colWidthAlContado[0] + colWidthAlContado[1] + colWidthAlContado[2], 7, "F");
+            doc.text("Producto", colXAlContado[0] + 2, y + 5);
+            doc.text("Cant.", colXAlContado[1] + 2, y + 5);
+            doc.text("Valor", colXAlContado[2] + 2, y + 5);
+            y += 7;
+            doc.setFont("helvetica", "normal");
+            doc.line(colXAlContado[0], y - 7, colXAlContado[0] + colWidthAlContado[0] + colWidthAlContado[1] + colWidthAlContado[2], y - 7);
+          }
+
+          const info = dadosProdutos.find(p => String(p.codigo) === String(prod.codigo));
+          if (!info) return;
+          const total = prod.custo * prod.qtd;
+          const totalComMargem = total * (1 + MARGEM_AL_CONTADO / 100);
+          totalAlContado += totalComMargem;
+
+          const productName = info.nome;
+          const textHeight = doc.getLineHeight() / doc.internal.scaleFactor;
+          const lineSpacing = 1; 
+          const splitText = doc.splitTextToSize(productName, colWidthAlContado[0] - 4);
+          
+          let currentYForText = y + 5;
+          splitText.forEach(line => {
+              doc.text(line, colXAlContado[0] + 2, currentYForText);
+              currentYForText += (textHeight + lineSpacing);
+          });
+
+          doc.text(String(prod.qtd), colXAlContado[1] + 2, y + 5);
+          doc.text(`Gs ${formatar(totalComMargem)}`, colXAlContado[2] + 2, y + 5);
+          
+          const rowHeight = Math.max(10, (splitText.length * (textHeight + lineSpacing)) + 2);
+          y += rowHeight; 
+          
+          doc.line(colXAlContado[0], y, colXAlContado[0] + colWidthAlContado[0] + colWidthAlContado[1] + colWidthAlContado[2], y);
+        });
+
+        doc.line(colXAlContado[0], startYAlContado, colXAlContado[0], y);
+        doc.line(colXAlContado[0] + colWidthAlContado[0], startYAlContado, colXAlContado[0] + colWidthAlContado[0], y);
+        doc.line(colXAlContado[0] + colWidthAlContado[0] + colWidthAlContado[1], startYAlContado, colXAlContado[0] + colWidthAlContado[0] + colWidthAlContado[1], y);
+        doc.line(colXAlContado[0] + colWidthAlContado[0] + colWidthAlContado[1] + colWidthAlContado[2], startYAlContado, colXAlContado[0] + colWidthAlContado[0] + colWidthAlContado[1] + colWidthAlContado[2], y);
+
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(12);
+        y += 5;
+        doc.text(`Total Al Contado Gs ${formatar(totalAlContado)}`, 20, y);
+        y += 15;
+      }
+
+      // Adiciona as opções de parcelamento se houver
+      opcoesParcelas.forEach(op => {
+        if (y + 40 > doc.internal.pageSize.height - 20) {
+          doc.addPage();
+          y = 20;
+          if (logoDataUrl) {
+              const logoWidth = 50; 
+              const logoHeight = 20;
+              const logoX = (doc.internal.pageSize.width - logoWidth) / 2;
+              const logoY = 10;
+              doc.addImage(logoDataUrl, 'PNG', logoX, logoY, logoWidth, logoHeight);
+              y = logoY + logoHeight + 10; 
+          }
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(20);
+          doc.text("Presupuesto de Productos", 105, y, { align: "center" });
+          y += 20;
         }
 
         doc.setFont("helvetica", "bold");
         doc.setFontSize(16);
-        doc.text(`${displayParcelas} Cuotas`, 20, y);
+        doc.text(`${op.parcelas} Cuotas`, 20, y);
         y += 10;
 
         doc.setFont("helvetica", "bold");
@@ -415,7 +525,6 @@
         y += 7;
 
         doc.setFont("helvetica", "normal");
-
         doc.line(colX[0], startY, colX[0] + colWidth[0] + colWidth[1] + colWidth[2] + colWidth[3], startY);
 
         let totalParcela = 0;
@@ -450,16 +559,9 @@
           }
 
           const info = dadosProdutos.find(p => String(p.codigo) === String(prod.codigo));
-          if (!info) {
-            console.error(`Product info not found for code: ${prod.codigo}`);
-            return;
-          }
+          if (!info) return;
 
-          // Se for "Al Contado", usa a margem fixa, senão usa a margem do JSON
-          const margem = (op.alContado || (op.parcelas === 1 && document.getElementById('alContadoCheckbox').checked)) 
-                       ? currentMargem 
-                       : (info[`margem_${op.parcelas}`] !== undefined ? parseFloat(info[`margem_${op.parcelas}`]) : 0);
-
+          const margem = (info[`margem_${op.parcelas}`] !== undefined ? parseFloat(info[`margem_${op.parcelas}`]) : 0);
           const total = prod.custo * prod.qtd;
           const totalComMargem = total * (1 + margem / 100);
           const valorParcela = totalComMargem / op.parcelas;
@@ -477,8 +579,7 @@
           });
 
           doc.text(String(prod.qtd), colX[1] + 2, y + 5);
-          // Ajusta a exibição das parcelas na coluna "Cuotas" para "Al Contado" ou o número real
-          doc.text(displayParcelas === "Al Contado" ? "Al Contado" : String(op.parcelas), colX[2] + 2, y + 5);
+          doc.text(String(op.parcelas), colX[2] + 2, y + 5);
           doc.text(`Gs ${formatar(valorParcela)}`, colX[3] + 2, y + 5);
           
           const rowHeight = Math.max(10, (splitText.length * (textHeight + lineSpacing)) + 2);
@@ -496,7 +597,7 @@
         doc.setFont("helvetica", "bold");
         doc.setFontSize(12);
         y += 5;
-        doc.text(`Total ${displayParcelas === "Al Contado" ? "Gs" : `${op.parcelas} x Gs`} ${formatar(totalParcela)}`, 20, y);
+        doc.text(`Total ${op.parcelas} x Gs ${formatar(totalParcela)}`, 20, y);
         y += 15;
       });
 
@@ -542,18 +643,18 @@
       if (codigoProduto) {
         const produtoParaEditar = dadosProdutos.find(p => String(p.codigo) === codigoProduto);
         if (produtoParaEditar) {
-          // Criar um input para a margem 'Al Contado' (que corresponde a 1 parcela)
+          // Adiciona a margem para "Al Contado" (fixa em 20%) como somente leitura
           const divMargemAlContado = document.createElement('div');
           divMargemAlContado.className = 'flex items-center gap-2';
           divMargemAlContado.innerHTML = `
-            <label for="margem_input_1" class="text-sm font-medium text-gray-700">1 Cuota (Al Contado):</label>
-            <input type="number" id="margem_input_1" value="${produtoParaEditar[`margem_1`] || 0}" step="0.01"
+            <label for="margem_al_contado" class="text-sm font-medium text-gray-700">Al Contado:</label>
+            <input type="number" id="margem_al_contado" value="${MARGEM_AL_CONTADO}" step="0.01"
               class="flex-1 px-2 py-1 border border-gray-300 rounded-md shadow-sm bg-gray-200 cursor-not-allowed text-sm" readonly>
           `;
           margensEdicaoDiv.appendChild(divMargemAlContado);
 
 
-          for (let i = 2; i <= MAX_PARCELAS_EDIT; i++) { // Começa do 2 para não sobrescrever o "Al Contado"
+          for (let i = 1; i <= MAX_PARCELAS_EDIT; i++) { // Agora começa do 1 para incluir "1 parcela" como editável
             const margemAtual = produtoParaEditar[`margem_${i}`] || 0;
             const divMargem = document.createElement('div');
             divMargem.className = 'flex items-center gap-2';
@@ -586,11 +687,10 @@
         return;
       }
 
-      // A margem para 1 parcela (Al Contado) não é editável pelo usuário neste modo.
-      // Ela é definida pela constante MARGEM_AL_CONTADO.
-      dadosProdutos[produtoIndex][`margem_1`] = MARGEM_AL_CONTADO;
-
-      for (let i = 2; i <= MAX_PARCELAS_EDIT; i++) { // Começa do 2
+      // A margem "Al Contado" não é salva no JSON, é uma constante separada
+      // e só é aplicada se o checkbox for marcado.
+      // As margens de parcelamento são salvas.
+      for (let i = 1; i <= MAX_PARCELAS_EDIT; i++) { // Agora salva de 1 a MAX_PARCELAS_EDIT
         const inputMargem = document.getElementById(`margem_input_${i}`);
         if (inputMargem) {
           const novaMargem = parseFloat(inputMargem.value);
@@ -604,6 +704,7 @@
               "Custo": prod.custo,
               "Mercadoria": prod.nome
           };
+          // Garante que todas as colunas de parcelas estejam no JSON
           for(let i=1; i<=MAX_PARCELAS_EDIT; i++) {
               obj[`${i} parcela`] = prod[`margem_${i}`];
           }
@@ -623,6 +724,7 @@
 
       showModal('Margens Guardadas', '¡Margens actualizadas y nuevo archivo JSON "dados_produtos.json" generado para descarga! Por favor, reemplace el archivo original con este nuevo JSON en la misma carpeta y recargue la página.');
       
+      // Re-popula os selects de produto para garantir que as margens atualizadas sejam refletidas
       document.querySelectorAll('[id^=nome_]').forEach((selectElement, i) => {
           const currentSelectedValue = selectElement.value;
           selectElement.innerHTML = `<option value="">Seleccione un producto</option>` +
@@ -692,10 +794,8 @@
                         }
                     }
 
-                    if (!foundKey) {
-                        margemValue = 0;
-                    }
-                    
+                    // Se não encontrou no JSON, define como 0 para parcelas.
+                    // A margem de "Al Contado" é fixa e não vem do JSON.
                     produto[`margem_${i}`] = (margemValue !== undefined && !isNaN(margemValue)) ? margemValue : 0;
                 }
                 return produto;
@@ -705,11 +805,12 @@
             fileNameSpan.innerText = 'Datos cargados con éxito de dados_produtos.json.';
             showModal('Éxito', '¡Datos de productos cargados con éxito de dados_produtos.json!');
 
+            // Atualiza os selects de produto após carregar os dados
             document.querySelectorAll('[id^=nome_]').forEach((selectElement, i) => {
                 const currentSelectedValue = selectElement.value;
                 selectElement.innerHTML = `<option value="">Seleccione un producto</option>` +
                     dadosProdutos.map(p => `<option value="${p.codigo}">${p.codigo} - ${p.nome}</option>`).join('');
-                selectElement.value = currentSelectedValue;
+                selectElement.value = currentSelectedValue; // Mantém a seleção se houver
                 atualizarCusto(selectElement, i);
             });
 
@@ -724,9 +825,8 @@
     window.onload = async function() {
         await carregarDadosProdutos();
         adicionarProduto();
-        // Não adicionamos parcela por padrão para dar prioridade ao checkbox "Al Contado"
-        // se o usuário quiser usá-lo sozinho.
-        // adicionarParcela(); // Pode remover esta linha se quiser que o usuário SEMPRE adicione as parcelas manualmente
+        // Pode adicionar uma parcela padrão ao carregar, ou deixar o usuário adicionar
+        adicionarParcela(); 
         logoDataUrl = await loadLogoForPDF();
     };
   </script>
