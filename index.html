@@ -31,7 +31,7 @@
     </div>
 
     <div class="flex flex-col md:flex-row gap-4 mt-8 mb-6">
-      <button onclick="toggleModoEdicao()" id="btnModoEdicao" class="flex-1 bg-yellow-500 hover:bg-yellow-600 text-white font-semibold py-3 px-6 rounded-lg shadow-md transition duration-200 ease-in-out">
+      <button onclick="tentarEntrarModoEdicao()" id="btnModoEdicao" class="flex-1 bg-yellow-500 hover:bg-yellow-600 text-white font-semibold py-3 px-6 rounded-lg shadow-md transition duration-200 ease-in-out">
         Entrar en Modo Edición
       </button>
     </div>
@@ -92,6 +92,19 @@
       </div>
     </div>
 
+    <div id="passwordModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center hidden z-50">
+      <div class="bg-white p-8 rounded-lg shadow-xl max-w-sm w-full text-center">
+        <h4 class="text-2xl font-bold mb-4 text-gray-800">Ingrese la Contraseña</h4>
+        <input type="password" id="passwordInput" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm mb-4" placeholder="Contraseña">
+        <button onclick="verificarSenha()" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-5 rounded-lg shadow-md transition duration-200 ease-in-out">
+          Confirmar
+        </button>
+        <button onclick="closePasswordModal()" class="bg-gray-400 hover:bg-gray-500 text-white font-semibold py-2 px-5 rounded-lg shadow-md transition duration-200 ease-in-out ml-2">
+          Cancelar
+        </button>
+      </div>
+    </div>
+
   </div>
 
   <script>
@@ -102,6 +115,7 @@
     let dadosProdutos = []; // Armazenará os dados carregados do JSON
     let modoEdicaoAtivo = false;
     const MAX_PARCELAS_EDIT = 20; // Define o número máximo de parcelas para edição
+    const SENHA_MODO_EDICAO = "1234567"; // Senha para entrar no modo de edição
 
     function showModal(title, message) {
       document.getElementById('modalTitle').innerText = title;
@@ -111,6 +125,37 @@
 
     function closeModal() {
       document.getElementById('customModal').classList.add('hidden');
+    }
+
+    function showPasswordModal() {
+      document.getElementById('passwordModal').classList.remove('hidden');
+      document.getElementById('passwordInput').value = ''; // Limpa o campo da senha
+      document.getElementById('passwordInput').focus(); // Foca no campo da senha
+    }
+
+    function closePasswordModal() {
+      document.getElementById('passwordModal').classList.add('hidden');
+    }
+
+    function verificarSenha() {
+      const inputSenha = document.getElementById('passwordInput').value;
+      if (inputSenha === SENHA_MODO_EDICAO) {
+        closePasswordModal();
+        toggleModoEdicao(); // Entra no modo de edição
+      } else {
+        showModal('Error', 'Contraseña incorrecta. Inténtelo de nuevo.');
+        document.getElementById('passwordInput').value = ''; // Limpa o campo
+      }
+    }
+
+    // Função que agora é chamada quando o botão é clicado.
+    // Ela verifica se o modo de edição já está ativo ou se precisa pedir a senha.
+    function tentarEntrarModoEdicao() {
+        if (modoEdicaoAtivo) {
+            toggleModoEdicao(); // Se já estiver ativo, sai do modo
+        } else {
+            showPasswordModal(); // Se não estiver ativo, pede a senha
+        }
     }
 
     function adicionarProduto() {
@@ -401,10 +446,7 @@
             const divMargem = document.createElement('div');
             divMargem.className = 'flex items-center gap-2';
             
-            // Adiciona classe para desabilitar se a parcela não for relevante para edição
             const inputClass = `flex-1 px-2 py-1 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm`;
-            // Por enquanto, todos os inputs estão habilitados até MAX_PARCELAS_EDIT.
-            // Se houver necessidade de desabilitar/restringir mais, podemos adicionar lógica aqui.
 
             divMargem.innerHTML = `
               <label for="margem_${i}" class="text-sm font-medium text-gray-700">${i} Cuotas:</label>
@@ -432,21 +474,12 @@
         return;
       }
 
-      // Cria um objeto temporário para as margens atualizadas, usando as chaves "X parcela"
-      const updatedMargins = {};
-
       for (let i = 1; i <= MAX_PARCELAS_EDIT; i++) {
         const inputMargem = document.getElementById(`margem_input_${i}`);
         if (inputMargem) {
           const novaMargem = parseFloat(inputMargem.value);
           // Atualiza o objeto dadosProdutos em memória com a chave padronizada
           dadosProdutos[produtoIndex][`margem_${i}`] = isNaN(novaMargem) ? 0 : novaMargem;
-          // Prepara para o JSON de saída com a chave "X parcela" (ou similar, mantendo a consistência do JSON de entrada)
-          updatedMargins[`${i} parcela`] = isNaN(novaMargem) ? 0 : novaMargem;
-        } else {
-             // Se um input não existe (além de MAX_PARCELAS_EDIT), mantemos a margem original ou 0
-             // Para garantir que o JSON de saída tenha todas as chaves esperadas até MAX_PARCELAS_EDIT
-             updatedMargins[`${i} parcela`] = dadosProdutos[produtoIndex][`margem_${i}`] || 0;
         }
       }
 
@@ -460,7 +493,6 @@
           };
           for(let i=1; i<=MAX_PARCELAS_EDIT; i++) {
               // Usamos a chave padronizada para garantir que a margem correta seja salva
-              // E tentamos usar o formato que lemos ("X parcela") para compatibilidade.
               // Onde `prod[`margem_${i}`]` é o valor numérico que foi atualizado em memória.
               obj[`${i} parcela`] = prod[`margem_${i}`];
           }
@@ -478,7 +510,7 @@
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
 
-      showModal('Margens Guardadas', '¡Margens actualizadas y nuevo archivo JSON "dados_produtos.json" generado para descarga! Por favor, reemplace el archivo original con este nuevo JSON en la misma carpeta.');
+      showModal('Margens Guardadas', '¡Margens actualizadas y nuevo archivo JSON "dados_produtos.json" generado para descarga! Por favor, reemplace el archivo original con este nuevo JSON en la misma carpeta y recargue la página.');
       
       // Opcional: recarregar o select de produtos no modo de simulação para garantir que as alterações sejam refletidas
       document.querySelectorAll('[id^=nome_]').forEach((selectElement, i) => {
@@ -519,7 +551,6 @@
                 for (let i = 1; i <= MAX_PARCELAS_EDIT; i++) { // Loop até o MAX_PARCELAS_EDIT
                     let margemValue;
                     // Tenta ler as margens de forma flexível: "1 parcela", "1 PARCELA", "parcela 1"
-                    // Prioriza o formato mais comum ou os que estão no seu JSON de entrada
                     let keyOptions = [`${i} parcela`, `${i} PARCELA`, `parcela ${i}`];
                     
                     let foundKey = false;
