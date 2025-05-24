@@ -6,7 +6,6 @@
   <title>Simulador de Crédito Avanzado</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <style>
     /* Custom styles for the body and font */
@@ -15,8 +14,6 @@
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
     }
-    /* Hide default file input button and style its label */
-    /* input[type="file"] { display: none; } */ /* Não é mais necessário */
     .custom-file-upload {
       @apply inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 cursor-pointer;
     }
@@ -360,7 +357,7 @@
       showModal('PDF Generado', '¡El archivo "presupuesto.pdf" fue generado con éxito!');
     }
 
-    // Nova função para carregar os dados JSON automaticamente
+    // Função para carregar os dados JSON automaticamente
     async function carregarDadosProdutos() {
         const loadingIndicator = document.getElementById('loadingIndicator');
         const fileNameSpan = document.getElementById('fileName');
@@ -379,18 +376,27 @@
             }
             const json = await response.json();
 
-            // *** Adapte esta parte conforme a estrutura do SEU JSON ***
-            // Assumimos que o JSON é um array de objetos, onde cada objeto é uma linha da planilha.
-            // Ex: [{ "codigo": "001", "custo": 100, "nome": "Produto A", "margem_1": 10, "margem_2": 15 }, ...]
+            // *** ESTA É A PARTE AJUSTADA PARA SEUS CABEÇALHOS DO EXCEL ***
+            // Verifica o formato dos dados recebidos no JSON
+            if (!Array.isArray(json) || json.length === 0) {
+                throw new Error("El archivo JSON está vacío o no es un array de objetos.");
+            }
+
             dadosPlanilha = json.map(row => {
+                // Adapte as chaves (nomes das propriedades) para corresponder aos seus cabeçalhos do Excel
+                // Lembre-se que as chaves JSON são sensíveis a maiúsculas/minúsculas e caracteres especiais.
                 const produto = {
-                    codigo: row.codigo,
-                    custo: parseFloat(row.custo),
-                    nome: row.nome
+                    // Usamos colchetes para acessar chaves com '.' (ex: 'COD.')
+                    codigo: String(row['COD.']),       // Mapeia para o cabeçalho 'COD.'
+                    custo: parseFloat(row['CUSTO']),   // Mapeia para o cabeçalho 'CUSTO'
+                    nome: row['MERCADERIA']            // Mapeia para o cabeçalho 'MERCADERIA'
                 };
-                // Coleta as margens, assumindo que as chaves são margem_1, margem_2, etc.
-                for (let i = 1; i <= 20; i++) { // Se tiver mais parcelas que 20, ajuste este loop
-                    produto[`margem_${i}`] = parseFloat(row[`margem_${i}`]) || 0;
+
+                // Coleta as margens, assumindo que as chaves no JSON são 'MARGEM_1', 'MARGEM_2', etc.
+                for (let i = 1; i <= 20; i++) { // Loop para até 20 margens
+                    const margemKey = `MARGEM_${i}`; // Constrói a chave esperada no JSON (ex: 'MARGEM_1')
+                    // Acessa a propriedade no objeto 'row' usando a chave construída
+                    produto[`margem_${i}`] = parseFloat(row[margemKey]) || 0;
                 }
                 return produto;
             });
