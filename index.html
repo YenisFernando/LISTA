@@ -360,8 +360,10 @@
         doc.setFontSize(10);
 
         const startY = y;
-        const colX = [20, 95, 120, 155];
-        const colWidth = [75, 25, 35, 45];
+        // colX: Posições X de início de cada coluna
+        // colWidth: Largura de cada coluna
+        const colX = [20, 100, 125, 160]; // Ajustado: Produto começa em 20, Cant. em 100 (antes 95)
+        const colWidth = [80, 25, 35, 45]; // Ajustado: Produto com 80 de largura (antes 75)
 
         doc.setFillColor(230, 230, 230);
         doc.rect(colX[0], startY, colWidth[0] + colWidth[1] + colWidth[2] + colWidth[3], 7, "F");
@@ -373,13 +375,14 @@
         y += 7;
 
         doc.setFont("helvetica", "normal");
-        doc.setFontSize(10);
+        // Opcional: Reduzir um pouco a fonte do produto se o nome for muito longo
+        // doc.setFontSize(9); // Tentar 9 ou até 8 se ainda não couber
 
         doc.line(colX[0], startY, colX[0] + colWidth[0] + colWidth[1] + colWidth[2] + colWidth[3], startY);
 
         let totalParcela = 0;
         produtos.forEach(prod => {
-          if (y + 7 > doc.internal.pageSize.height - 20) {
+          if (y + 20 > doc.internal.pageSize.height - 20) { // Aumentei o check para 20
             doc.addPage();
             y = 20;
             // Repete o logo e título se a página virar
@@ -406,7 +409,7 @@
             doc.text("Valor Cuota", colX[3] + 2, y + 5);
             y += 7;
             doc.setFont("helvetica", "normal");
-            doc.setFontSize(10);
+            // doc.setFontSize(9); // Se você descomentou lá em cima, descomente aqui também
             doc.line(colX[0], y - 7, colX[0] + colWidth[0] + colWidth[1] + colWidth[2] + colWidth[3], y - 7);
           }
 
@@ -422,11 +425,27 @@
           const valorParcela = totalComMargem / op.parcelas;
           totalParcela += valorParcela;
 
-          doc.text(info.nome, colX[0] + 2, y + 5);
+          // Adicionando a checagem de quebra de linha para o nome do produto
+          const productName = info.nome;
+          const textHeight = doc.getLineHeight() / doc.internal.scaleFactor; // Altura de uma linha de texto
+          const lineSpacing = 1; // Espaçamento extra entre linhas quebradas
+          const splitText = doc.splitTextToSize(productName, colWidth[0] - 4); // colWidth[0] - 4 para ter uma pequena margem interna
+          
+          let currentYForText = y + 5; // Ponto de partida para o texto dentro da célula
+          splitText.forEach(line => {
+              doc.text(line, colX[0] + 2, currentYForText);
+              currentYForText += (textHeight + lineSpacing); // Incrementa para a próxima linha do texto quebrado
+          });
+
+          // Posição para as outras colunas (Cant., Cuotas, Valor Cuota). Alinha-as com o topo da célula.
           doc.text(String(prod.qtd), colX[1] + 2, y + 5);
           doc.text(String(op.parcelas), colX[2] + 2, y + 5);
           doc.text(`Gs ${formatar(valorParcela)}`, colX[3] + 2, y + 5);
-          y += 10; // <<--- AQUI ESTÁ A ALTERAÇÃO: Aumentamos o espaçamento entre as linhas da tabela
+          
+          // O incremento de 'y' agora deve ser baseado na altura total do texto quebrado ou em um mínimo.
+          // Garante que a próxima linha da tabela comece após todas as linhas do nome do produto.
+          const rowHeight = Math.max(10, (splitText.length * (textHeight + lineSpacing)) + 2); // 2 de padding extra
+          y += rowHeight; 
           
           doc.line(colX[0], y, colX[0] + colWidth[0] + colWidth[1] + colWidth[2] + colWidth[3], y);
         });
