@@ -13,8 +13,10 @@
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
     }
-    .custom-file-upload {
-      @apply inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 cursor-pointer;
+    /* Estilo para inputs de margem quando estão desabilitados no modo de edição (ex: para parcelas acima de 20) */
+    .margem-input-disabled {
+      background-color: #e2e8f0; /* bg-gray-200 */
+      cursor: not-allowed;
     }
   </style>
 </head>
@@ -99,6 +101,7 @@
     let opcoesParcelas = [];
     let dadosProdutos = []; // Armazenará os dados carregados do JSON
     let modoEdicaoAtivo = false;
+    const MAX_PARCELAS_EDIT = 20; // Define o número máximo de parcelas para edição
 
     function showModal(title, message) {
       document.getElementById('modalTitle').innerText = title;
@@ -173,7 +176,7 @@
     }
 
     function formatar(valor) {
-      return Math.round(valor).toLocaleString('de-DE');
+      return Math.round(valor).toLocaleString('de-DE'); // Formato para Gs (Guaranis)
     }
 
     function calcularParcelas() {
@@ -234,6 +237,7 @@
             console.error(`Product info not found for code: ${prod.codigo}`);
             return;
           }
+          // Garante que a margem é um número, mesmo que não exista a coluna para essa parcela
           const margem = info[`margem_${op.parcelas}`] !== undefined ? parseFloat(info[`margem_${op.parcelas}`]) : 0;
           
           const total = prod.custo * prod.qtd;
@@ -392,14 +396,20 @@
       if (codigoProduto) {
         const produtoParaEditar = dadosProdutos.find(p => String(p.codigo) === codigoProduto);
         if (produtoParaEditar) {
-          for (let i = 1; i <= 20; i++) { // Supondo até 20 parcelas
-            const margemAtual = produtoParaEditar[`margem_${i}`] || 0; // Pega a margem atual ou 0
+          for (let i = 1; i <= MAX_PARCELAS_EDIT; i++) { // Usa MAX_PARCELAS_EDIT
+            const margemAtual = produtoParaEditar[`margem_${i}`] || 0;
             const divMargem = document.createElement('div');
             divMargem.className = 'flex items-center gap-2';
+            
+            // Adiciona classe para desabilitar se a parcela não for relevante para edição
+            const inputClass = `flex-1 px-2 py-1 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm`;
+            // Por enquanto, todos os inputs estão habilitados até MAX_PARCELAS_EDIT.
+            // Se houver necessidade de desabilitar/restringir mais, podemos adicionar lógica aqui.
+
             divMargem.innerHTML = `
               <label for="margem_${i}" class="text-sm font-medium text-gray-700">${i} Cuotas:</label>
-              <input type="number" id="margem_input_${i}" value="${margemAtual}" step="0.1"
-                class="flex-1 px-2 py-1 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm">
+              <input type="number" id="margem_input_${i}" value="${margemAtual}" step="0.01"
+                class="${inputClass}">
             `;
             margensEdicaoDiv.appendChild(divMargem);
           }
@@ -422,51 +432,55 @@
         return;
       }
 
-      // Atualiza as margens no objeto 'dadosProdutos'
-      for (let i = 1; i <= 20; i++) {
+      // Cria um objeto temporário para as margens atualizadas, usando as chaves "X parcela"
+      const updatedMargins = {};
+
+      for (let i = 1; i <= MAX_PARCELAS_EDIT; i++) {
         const inputMargem = document.getElementById(`margem_input_${i}`);
         if (inputMargem) {
           const novaMargem = parseFloat(inputMargem.value);
+          // Atualiza o objeto dadosProdutos em memória com a chave padronizada
           dadosProdutos[produtoIndex][`margem_${i}`] = isNaN(novaMargem) ? 0 : novaMargem;
-          
-          // Também atualiza as chaves originais do JSON para que o download seja compatível
-          // com o formato de entrada que lemos (ex: "1 parcela", "3 PARCELA", etc.)
-          // Esta parte pode ser ajustada se você quiser padronizar o JSON de saída.
-          // Por simplicidade, vamos usar o formato 'X parcela'.
-          dadosProdutos[produtoIndex][`${i} parcela`] = isNaN(novaMargem) ? 0 : novaMargem;
+          // Prepara para o JSON de saída com a chave "X parcela" (ou similar, mantendo a consistência do JSON de entrada)
+          updatedMargins[`${i} parcela`] = isNaN(novaMargem) ? 0 : novaMargem;
+        } else {
+             // Se um input não existe (além de MAX_PARCELAS_EDIT), mantemos a margem original ou 0
+             // Para garantir que o JSON de saída tenha todas as chaves esperadas até MAX_PARCELAS_EDIT
+             updatedMargins[`${i} parcela`] = dadosProdutos[produtoIndex][`margem_${i}`] || 0;
         }
       }
 
-      // Reformatar para o JSON original para download
+      // Reformatar para o JSON original para download, garantindo que as chaves de margem
+      // sigam o padrão do JSON de entrada (ex: "1 parcela", "2 parcela", etc.)
       const dadosParaDownload = dadosProdutos.map(prod => {
           const obj = {
               "cod.": prod.codigo,
               "Custo": prod.custo,
               "Mercadoria": prod.nome
           };
-          for(let i=1; i<=20; i++) {
+          for(let i=1; i<=MAX_PARCELAS_EDIT; i++) {
               // Usamos a chave padronizada para garantir que a margem correta seja salva
               // E tentamos usar o formato que lemos ("X parcela") para compatibilidade.
+              // Onde `prod[`margem_${i}`]` é o valor numérico que foi atualizado em memória.
               obj[`${i} parcela`] = prod[`margem_${i}`];
           }
           return obj;
       });
-
 
       const jsonString = JSON.stringify(dadosParaDownload, null, 2); // Formata o JSON com indentação
       const blob = new Blob([jsonString], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'dados_produtos_atualizado.json'; // Nome do arquivo para download
+      a.download = 'dados_produtos.json'; // Nome do arquivo para download (sugestão de substituir o original)
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
 
-      showModal('Margens Guardadas', '¡Margens actualizadas y nuevo archivo JSON "dados_produtos_atualizado.json" generado para descarga! Por favor, reemplace el archivo original con este nuevo JSON.');
+      showModal('Margens Guardadas', '¡Margens actualizadas y nuevo archivo JSON "dados_produtos.json" generado para descarga! Por favor, reemplace el archivo original con este nuevo JSON en la misma carpeta.');
       
-      // Opcional: recarregar o select de produtos para garantir que as alterações sejam refletidas
+      // Opcional: recarregar o select de produtos no modo de simulação para garantir que as alterações sejam refletidas
       document.querySelectorAll('[id^=nome_]').forEach((selectElement, i) => {
           const currentSelectedValue = selectElement.value;
           selectElement.innerHTML = `<option value="">Seleccione un producto</option>` +
@@ -475,7 +489,6 @@
           atualizarCusto(selectElement, i);
       });
     }
-
 
     async function carregarDadosProdutos() {
         const loadingIndicator = document.getElementById('loadingIndicator');
@@ -503,20 +516,23 @@
                     nome: row['Mercadoria']
                 };
 
-                for (let i = 1; i <= 20; i++) {
+                for (let i = 1; i <= MAX_PARCELAS_EDIT; i++) { // Loop até o MAX_PARCELAS_EDIT
                     let margemValue;
-                    let keyLowercase = `${i} parcela`;
-                    let keyUppercase = `${i} PARCELA`;
-                    let keySpecific = `parcela ${i}`;
+                    // Tenta ler as margens de forma flexível: "1 parcela", "1 PARCELA", "parcela 1"
+                    // Prioriza o formato mais comum ou os que estão no seu JSON de entrada
+                    let keyOptions = [`${i} parcela`, `${i} PARCELA`, `parcela ${i}`];
+                    
+                    let foundKey = false;
+                    for (let k = 0; k < keyOptions.length; k++) {
+                        if (row[keyOptions[k]] !== undefined && row[keyOptions[k]] !== '') {
+                            margemValue = parseFloat(row[keyOptions[k]]);
+                            foundKey = true;
+                            break;
+                        }
+                    }
 
-                    if (row[keyLowercase] !== undefined && row[keyLowercase] !== '') {
-                        margemValue = parseFloat(row[keyLowercase]);
-                    } else if (row[keyUppercase] !== undefined && row[keyUppercase] !== '') {
-                        margemValue = parseFloat(row[keyUppercase]);
-                    } else if (row[keySpecific] !== undefined && row[keySpecific] !== '') {
-                        margemValue = parseFloat(row[keySpecific]);
-                    } else {
-                        margemValue = 0;
+                    if (!foundKey) {
+                        margemValue = 0; // Se a coluna não existir ou estiver vazia
                     }
                     
                     produto[`margem_${i}`] = (margemValue !== undefined && !isNaN(margemValue)) ? margemValue : 0;
@@ -528,12 +544,13 @@
             fileNameSpan.innerText = 'Datos cargados con éxito de dados_produtos.json.';
             showModal('Éxito', '¡Datos de productos cargados con éxito de dados_produtos.json!');
 
+            // Atualiza os selects de produto existentes no modo de simulação
             document.querySelectorAll('[id^=nome_]').forEach((selectElement, i) => {
-                const currentSelectedValue = selectElement.value;
+                const currentSelectedValue = selectElement.value; // Mantém o valor selecionado
                 selectElement.innerHTML = `<option value="">Seleccione un producto</option>` +
                     dadosProdutos.map(p => `<option value="${p.codigo}">${p.codigo} - ${p.nome}</option>`).join('');
-                selectElement.value = currentSelectedValue;
-                atualizarCusto(selectElement, i);
+                selectElement.value = currentSelectedValue; // Restaura o valor selecionado
+                atualizarCusto(selectElement, i); // Atualiza o custo se um produto já estava selecionado
             });
 
         } catch (error) {
@@ -544,6 +561,7 @@
         }
     }
 
+    // Carrega os dados da planilha e adiciona os campos iniciais ao carregar a página
     window.onload = function() {
         carregarDadosProdutos();
         adicionarProduto();
