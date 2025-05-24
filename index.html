@@ -8,7 +8,6 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <style>
-    /* Custom styles for the body and font */
     body {
       font-family: 'Inter', sans-serif;
       -webkit-font-smoothing: antialiased;
@@ -25,8 +24,30 @@
 
     <div class="mb-6">
       <label for="statusCarga" class="block text-lg font-semibold text-gray-800 mb-2">Estado de Carga de Datos:</label>
-      <span id="fileName" class="ml-3 text-gray-600">Cargando datos...</span>
+      <span id="fileName" class="ml-3 text-gray-600">Cargando datos del archivo JSON...</span>
       <div id="loadingIndicator" class="hidden mt-2 text-blue-600 font-medium">Cargando datos...</div>
+    </div>
+
+    <div class="flex flex-col md:flex-row gap-4 mt-8 mb-6">
+      <button onclick="toggleModoEdicao()" id="btnModoEdicao" class="flex-1 bg-yellow-500 hover:bg-yellow-600 text-white font-semibold py-3 px-6 rounded-lg shadow-md transition duration-200 ease-in-out">
+        Entrar en Modo Edición
+      </button>
+    </div>
+
+    <div id="painelEdicaoMargens" class="hidden bg-orange-50 border border-orange-200 text-orange-800 p-6 rounded-lg mb-8 shadow-inner">
+      <h3 class="text-2xl font-semibold text-gray-800 mb-4">Editar Margens de Lucro</h3>
+      <div class="mb-4">
+        <label for="selectProdutoEdicao" class="block text-sm font-medium text-gray-700 mb-1">Seleccionar Producto</label>
+        <select id="selectProdutoEdicao" onchange="popularMargensEdicao()"
+          class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+          <option value="">Seleccione un producto</option>
+        </select>
+      </div>
+      <div id="margensEdicao" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        </div>
+      <button onclick="salvarMargens()" class="mt-6 w-full md:w-auto bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg shadow-md transition duration-200 ease-in-out">
+        Guardar Margens y Descargar JSON
+      </button>
     </div>
 
     <h3 class="text-2xl font-semibold text-gray-800 mb-4 mt-6">Productos</h3>
@@ -76,21 +97,19 @@
     let indexParcela = 0;
     let produtos = [];
     let opcoesParcelas = [];
-    let dadosPlanilha = []; // Armazenará os dados carregados do JSON
+    let dadosProdutos = []; // Armazenará os dados carregados do JSON
+    let modoEdicaoAtivo = false;
 
-    // Function to show custom modal
     function showModal(title, message) {
       document.getElementById('modalTitle').innerText = title;
       document.getElementById('modalMessage').innerText = message;
       document.getElementById('customModal').classList.remove('hidden');
     }
 
-    // Function to close custom modal
     function closeModal() {
       document.getElementById('customModal').classList.add('hidden');
     }
 
-    // Function to add a new product input group
     function adicionarProduto() {
       const div = document.createElement('div');
       div.className = 'produto-item flex flex-col md:flex-row items-stretch md:items-center gap-4 p-4 bg-gray-50 rounded-lg shadow-sm';
@@ -100,7 +119,7 @@
           <select onchange="atualizarCusto(this, ${indexProduto})" id="nome_${indexProduto}"
             class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
             <option value="">Seleccione un producto</option>
-            ${dadosPlanilha.map(p => `<option value="${p.codigo}">${p.codigo} - ${p.nome}</option>`).join('')}
+            ${dadosProdutos.map(p => `<option value="${p.codigo}">${p.codigo} - ${p.nome}</option>`).join('')}
           </select>
         </div>
         <div class="flex-1">
@@ -122,22 +141,19 @@
       indexProduto++;
     }
 
-    // Function to remove a product input group
     function removerProduto(button) {
       button.parentElement.remove();
     }
 
-    // Function to update product cost based on selection
     function atualizarCusto(select, index) {
-      const produto = dadosPlanilha.find(p => String(p.codigo) === select.value); // Ensure type consistency
+      const produto = dadosProdutos.find(p => String(p.codigo) === select.value);
       if (produto) {
         document.getElementById(`custo_${index}`).value = produto.custo;
       } else {
-        document.getElementById(`custo_${index}`).value = ''; // Clear if no product selected
+        document.getElementById(`custo_${index}`).value = '';
       }
     }
 
-    // Function to add a new installment option input group
     function adicionarParcela() {
       const div = document.createElement('div');
       div.className = 'parcela-opcao flex flex-col md:flex-row items-stretch md:items-center gap-4 p-4 bg-gray-50 rounded-lg shadow-sm';
@@ -156,17 +172,14 @@
       indexParcela++;
     }
 
-    // Function to format currency
     function formatar(valor) {
-      return Math.round(valor).toLocaleString('de-DE'); // Using 'de-DE' for dot as thousands separator
+      return Math.round(valor).toLocaleString('de-DE');
     }
 
-    // Main function to calculate installments
     function calcularParcelas() {
       produtos = [];
       opcoesParcelas = [];
 
-      // Collect product data
       const selects = document.querySelectorAll('[id^=nome_]');
       selects.forEach((s, i) => {
         const codigo = s.value;
@@ -175,7 +188,7 @@
 
         if (!codigo || !qtdInput || !custoInput) {
             console.warn(`Skipping incomplete product entry at index ${i}`);
-            return; // Skip if any required element is missing
+            return;
         }
 
         const qtd = parseInt(qtdInput.value);
@@ -185,12 +198,11 @@
           produtos.push({ codigo, qtd, custo });
         } else {
             showModal('Error de Entrada', 'Por favor, complete todos los campos de producto con valores válidos (cantidad > 0, costo >= 0).');
-            produtos = []; // Clear products if any invalid entry found
+            produtos = [];
             return;
         }
       });
 
-      // Collect installment options
       const parcelasInputs = document.querySelectorAll('[id^=parcelas_]');
       parcelasInputs.forEach(p => {
         const parcelas = parseInt(p.value);
@@ -198,7 +210,7 @@
           opcoesParcelas.push({ parcelas });
         } else {
             showModal('Error de Entrada', 'Por favor, complete todos los campos de cuotas con valores válidos (cuotas > 0).');
-            opcoesParcelas = []; // Clear options if any invalid entry found
+            opcoesParcelas = [];
             return;
         }
       });
@@ -217,33 +229,13 @@
         resultadoHTML += `<h4 class="text-xl font-semibold text-gray-700 mb-2 mt-4">${op.parcelas} Cuotas</h4>`;
         let totalParcela = 0;
         produtos.forEach(prod => {
-          const info = dadosPlanilha.find(p => String(p.codigo) === String(prod.codigo)); // Ensure type consistency
+          const info = dadosProdutos.find(p => String(p.codigo) === String(prod.codigo));
           if (!info) {
             console.error(`Product info not found for code: ${prod.codigo}`);
-            return; // Skip if product info is missing
+            return;
           }
-          // AQUI ESTÁ A PARTE CRÍTICA PARA AS MARGENS:
-          // Agora, as chaves das margens são "1 parcela", "2 parcela", "3 PARCELA", etc.
-          // Precisamos normalizar o nome da chave para buscar no JSON.
-          let margemKeyFromJSON = `${op.parcelas} parcela`; // Formato base
-          // Tentamos a chave exata primeiro (ex: "1 parcela")
-          let margem = info[margemKeyFromJSON] !== undefined ? parseFloat(info[margemKeyFromJSON]) : undefined;
+          const margem = info[`margem_${op.parcelas}`] !== undefined ? parseFloat(info[`margem_${op.parcelas}`]) : 0;
           
-          // Se não encontrou, tenta com maiúsculas (ex: "3 PARCELA")
-          if (margem === undefined) {
-              margemKeyFromJSON = `${op.parcelas} PARCELA`;
-              margem = info[margemKeyFromJSON] !== undefined ? parseFloat(info[margemKeyFromJSON]) : undefined;
-          }
-          // Se não encontrou, tenta a variação "parcela 1" (para o caso específico do primeiro item)
-          if (margem === undefined && op.parcelas === 1) {
-              margemKeyFromJSON = `parcela ${op.parcelas}`;
-              margem = info[margemKeyFromJSON] !== undefined ? parseFloat(info[margemKeyFromJSON]) : undefined;
-          }
-          
-          // Se ainda assim não encontrou, assume 0
-          margem = margem !== undefined && !isNaN(margem) ? margem : 0;
-
-
           const total = prod.custo * prod.qtd;
           const totalComMargem = total * (1 + margem / 100);
           const valorParcela = totalComMargem / op.parcelas;
@@ -258,17 +250,15 @@
       document.getElementById('resumoContent').innerHTML = `<strong>Resumen:</strong><br>${resumoHTML}`;
     }
 
-    // Function to generate PDF
     async function gerarPDF() {
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF();
-      let y = 20; // Initial Y position
+      let y = 20;
 
-      // Set font and size for the main title
       doc.setFont("helvetica", "bold");
       doc.setFontSize(20);
-      doc.text("Presupuesto de Productos", 105, y, { align: "center" }); // Centered title
-      y += 20; // Increase Y for spacing
+      doc.text("Presupuesto de Productos", 105, y, { align: "center" });
+      y += 20;
 
       if (produtos.length === 0 || opcoesParcelas.length === 0) {
         showModal('Aviso', 'Por favor, agregue productos y opciones de cuotas antes de generar el PDF.');
@@ -276,8 +266,7 @@
       }
 
       opcoesParcelas.forEach(op => {
-        // Check for new page before adding new section
-        if (y + 40 > doc.internal.pageSize.height - 20) { // If less than 40 units until bottom margin
+        if (y + 40 > doc.internal.pageSize.height - 20) {
           doc.addPage();
           y = 20;
         }
@@ -287,37 +276,32 @@
         doc.text(`${op.parcelas} Cuotas`, 20, y);
         y += 10;
 
-        // Table Headers
         doc.setFont("helvetica", "bold");
-        doc.setFontSize(10); // Smaller font for table headers
+        doc.setFontSize(10);
 
         const startY = y;
-        const colX = [20, 95, 120, 155]; // X positions for columns
-        const colWidth = [75, 25, 35, 45]; // Widths for columns
+        const colX = [20, 95, 120, 155];
+        const colWidth = [75, 25, 35, 45];
 
-        // Draw header row background
-        doc.setFillColor(230, 230, 230); // Light gray background
+        doc.setFillColor(230, 230, 230);
         doc.rect(colX[0], startY, colWidth[0] + colWidth[1] + colWidth[2] + colWidth[3], 7, "F");
 
         doc.text("Producto", colX[0] + 2, startY + 5);
         doc.text("Cant.", colX[1] + 2, startY + 5);
         doc.text("Cuotas", colX[2] + 2, startY + 5);
         doc.text("Valor Cuota", colX[3] + 2, startY + 5);
-        y += 7; // Move Y past header row
+        y += 7;
 
         doc.setFont("helvetica", "normal");
-        doc.setFontSize(10); // Normal font for table content
+        doc.setFontSize(10);
 
-        // Draw top border of the table
         doc.line(colX[0], startY, colX[0] + colWidth[0] + colWidth[1] + colWidth[2] + colWidth[3], startY);
 
         let totalParcela = 0;
         produtos.forEach(prod => {
-          // Check for new page for each row
-          if (y + 7 > doc.internal.pageSize.height - 20) { // If less than 7 units until bottom margin
+          if (y + 7 > doc.internal.pageSize.height - 20) {
             doc.addPage();
             y = 20;
-            // Redraw headers on new page
             doc.setFont("helvetica", "bold");
             doc.setFontSize(10);
             doc.setFillColor(230, 230, 230);
@@ -329,109 +313,210 @@
             y += 7;
             doc.setFont("helvetica", "normal");
             doc.setFontSize(10);
-            // Draw top border for the table on new page
             doc.line(colX[0], y - 7, colX[0] + colWidth[0] + colWidth[1] + colWidth[2] + colWidth[3], y - 7);
           }
 
-          const info = dadosPlanilha.find(p => String(p.codigo) === String(prod.codigo));
+          const info = dadosProdutos.find(p => String(p.codigo) === String(prod.codigo));
           if (!info) {
             console.error(`Product info not found for code: ${prod.codigo}`);
             return;
           }
-          // AQUI TAMBÉM AJUSTAMOS PARA O PDF
-          let margemKeyFromJSON = `${op.parcelas} parcela`;
-          let margem = info[margemKeyFromJSON] !== undefined ? parseFloat(info[margemKeyFromJSON]) : undefined;
-          
-          if (margem === undefined) {
-              margemKeyFromJSON = `${op.parcelas} PARCELA`;
-              margem = info[margemKeyFromJSON] !== undefined ? parseFloat(info[margemKeyFromJSON]) : undefined;
-          }
-          if (margem === undefined && op.parcelas === 1) {
-              margemKeyFromJSON = `parcela ${op.parcelas}`;
-              margem = info[margemKeyFromJSON] !== undefined ? parseFloat(info[margemKeyFromJSON]) : undefined;
-          }
-          margem = margem !== undefined && !isNaN(margem) ? margem : 0;
-
+          const margem = info[`margem_${op.parcelas}`] !== undefined ? parseFloat(info[`margem_${op.parcelas}`]) : 0;
 
           const total = prod.custo * prod.qtd;
           const totalComMargem = total * (1 + margem / 100);
           const valorParcela = totalComMargem / op.parcelas;
           totalParcela += valorParcela;
 
-          // Draw row content
           doc.text(info.nome, colX[0] + 2, y + 5);
           doc.text(String(prod.qtd), colX[1] + 2, y + 5);
           doc.text(String(op.parcelas), colX[2] + 2, y + 5);
           doc.text(`Gs ${formatar(valorParcela)}`, colX[3] + 2, y + 5);
-          y += 7; // Move Y for next row
+          y += 7;
 
-          // Draw horizontal line for row
           doc.line(colX[0], y, colX[0] + colWidth[0] + colWidth[1] + colWidth[2] + colWidth[3], y);
         });
 
-        // Draw vertical lines for the table
-        doc.line(colX[0], startY, colX[0], y); // Left border
+        doc.line(colX[0], startY, colX[0], y);
         doc.line(colX[0] + colWidth[0], startY, colX[0] + colWidth[0], y);
         doc.line(colX[0] + colWidth[0] + colWidth[1], startY, colX[0] + colWidth[0] + colWidth[1], y);
         doc.line(colX[0] + colWidth[0] + colWidth[1] + colWidth[2], startY, colX[0] + colWidth[0] + colWidth[1] + colWidth[2], y);
-        doc.line(colX[0] + colWidth[0] + colWidth[1] + colWidth[2] + colWidth[3], startY, colX[0] + colWidth[0] + colWidth[1] + colWidth[2] + colWidth[3], y); // Right border
+        doc.line(colX[0] + colWidth[0] + colWidth[1] + colWidth[2] + colWidth[3], startY, colX[0] + colWidth[0] + colWidth[1] + colWidth[2] + colWidth[3], y);
 
-        // Add total for the installment option
         doc.setFont("helvetica", "bold");
         doc.setFontSize(12);
-        y += 5; // Small spacing before total
+        y += 5;
         doc.text(`Total ${op.parcelas} x Gs ${formatar(totalParcela)}`, 20, y);
-        y += 15; // Spacing after total for next section
+        y += 15;
       });
 
       doc.save("presupuesto.pdf");
       showModal('PDF Generado', '¡El archivo "presupuesto.pdf" fue generado con éxito!');
     }
 
-    // Função para carregar os dados JSON automaticamente
+    // --- FUNÇÕES PARA O MODO DE EDIÇÃO DE MARGENS ---
+
+    function toggleModoEdicao() {
+      modoEdicaoAtivo = !modoEdicaoAtivo;
+      const btnModoEdicao = document.getElementById('btnModoEdicao');
+      const painelEdicao = document.getElementById('painelEdicaoMargens');
+      const selectProdutoEdicao = document.getElementById('selectProdutoEdicao');
+
+      if (modoEdicaoAtivo) {
+        btnModoEdicao.innerText = 'Salir del Modo Edición';
+        btnModoEdicao.classList.remove('bg-yellow-500', 'hover:bg-yellow-600');
+        btnModoEdicao.classList.add('bg-gray-500', 'hover:bg-gray-600');
+        painelEdicao.classList.remove('hidden');
+
+        // Popular o select de produtos no modo de edição
+        selectProdutoEdicao.innerHTML = `<option value="">Seleccione un producto</option>` +
+          dadosProdutos.map(p => `<option value="${p.codigo}">${p.codigo} - ${p.nome}</option>`).join('');
+        
+        // Limpar margens ao entrar no modo de edição
+        document.getElementById('margensEdicao').innerHTML = '';
+
+      } else {
+        btnModoEdicao.innerText = 'Entrar en Modo Edición';
+        btnModoEdicao.classList.remove('bg-gray-500', 'hover:bg-gray-600');
+        btnModoEdicao.classList.add('bg-yellow-500', 'hover:bg-yellow-600');
+        painelEdicao.classList.add('hidden');
+      }
+    }
+
+    function popularMargensEdicao() {
+      const selectProdutoEdicao = document.getElementById('selectProdutoEdicao');
+      const codigoProduto = selectProdutoEdicao.value;
+      const margensEdicaoDiv = document.getElementById('margensEdicao');
+      margensEdicaoDiv.innerHTML = ''; // Limpa as margens existentes
+
+      if (codigoProduto) {
+        const produtoParaEditar = dadosProdutos.find(p => String(p.codigo) === codigoProduto);
+        if (produtoParaEditar) {
+          for (let i = 1; i <= 20; i++) { // Supondo até 20 parcelas
+            const margemAtual = produtoParaEditar[`margem_${i}`] || 0; // Pega a margem atual ou 0
+            const divMargem = document.createElement('div');
+            divMargem.className = 'flex items-center gap-2';
+            divMargem.innerHTML = `
+              <label for="margem_${i}" class="text-sm font-medium text-gray-700">${i} Cuotas:</label>
+              <input type="number" id="margem_input_${i}" value="${margemAtual}" step="0.1"
+                class="flex-1 px-2 py-1 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm">
+            `;
+            margensEdicaoDiv.appendChild(divMargem);
+          }
+        }
+      }
+    }
+
+    function salvarMargens() {
+      const selectProdutoEdicao = document.getElementById('selectProdutoEdicao');
+      const codigoProduto = selectProdutoEdicao.value;
+
+      if (!codigoProduto) {
+        showModal('Error', 'Por favor, seleccione un producto para guardar las margenes.');
+        return;
+      }
+
+      const produtoIndex = dadosProdutos.findIndex(p => String(p.codigo) === codigoProduto);
+      if (produtoIndex === -1) {
+        showModal('Error', 'Producto no encontrado para edición.');
+        return;
+      }
+
+      // Atualiza as margens no objeto 'dadosProdutos'
+      for (let i = 1; i <= 20; i++) {
+        const inputMargem = document.getElementById(`margem_input_${i}`);
+        if (inputMargem) {
+          const novaMargem = parseFloat(inputMargem.value);
+          dadosProdutos[produtoIndex][`margem_${i}`] = isNaN(novaMargem) ? 0 : novaMargem;
+          
+          // Também atualiza as chaves originais do JSON para que o download seja compatível
+          // com o formato de entrada que lemos (ex: "1 parcela", "3 PARCELA", etc.)
+          // Esta parte pode ser ajustada se você quiser padronizar o JSON de saída.
+          // Por simplicidade, vamos usar o formato 'X parcela'.
+          dadosProdutos[produtoIndex][`${i} parcela`] = isNaN(novaMargem) ? 0 : novaMargem;
+        }
+      }
+
+      // Reformatar para o JSON original para download
+      const dadosParaDownload = dadosProdutos.map(prod => {
+          const obj = {
+              "cod.": prod.codigo,
+              "Custo": prod.custo,
+              "Mercadoria": prod.nome
+          };
+          for(let i=1; i<=20; i++) {
+              // Usamos a chave padronizada para garantir que a margem correta seja salva
+              // E tentamos usar o formato que lemos ("X parcela") para compatibilidade.
+              obj[`${i} parcela`] = prod[`margem_${i}`];
+          }
+          return obj;
+      });
+
+
+      const jsonString = JSON.stringify(dadosParaDownload, null, 2); // Formata o JSON com indentação
+      const blob = new Blob([jsonString], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'dados_produtos_atualizado.json'; // Nome do arquivo para download
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      showModal('Margens Guardadas', '¡Margens actualizadas y nuevo archivo JSON "dados_produtos_atualizado.json" generado para descarga! Por favor, reemplace el archivo original con este nuevo JSON.');
+      
+      // Opcional: recarregar o select de produtos para garantir que as alterações sejam refletidas
+      document.querySelectorAll('[id^=nome_]').forEach((selectElement, i) => {
+          const currentSelectedValue = selectElement.value;
+          selectElement.innerHTML = `<option value="">Seleccione un producto</option>` +
+              dadosProdutos.map(p => `<option value="${p.codigo}">${p.codigo} - ${p.nome}</option>`).join('');
+          selectElement.value = currentSelectedValue;
+          atualizarCusto(selectElement, i);
+      });
+    }
+
+
     async function carregarDadosProdutos() {
         const loadingIndicator = document.getElementById('loadingIndicator');
         const fileNameSpan = document.getElementById('fileName');
 
-        fileNameSpan.innerText = 'Cargando datos predefinidos...'; // Mensagem inicial
-        loadingIndicator.classList.remove('hidden'); // Mostra o indicador de carregamento
+        fileNameSpan.innerText = 'Cargando datos del archivo JSON...';
+        loadingIndicator.classList.remove('hidden');
 
         try {
-            const response = await fetch('dados_produtos.json');
+            const response = await fetch('dados_produtos.json'); // Caminho para o seu arquivo JSON local
 
             if (!response.ok) {
-                throw new Error(`Error HTTP! estado: ${response.status}`);
+                throw new Error(`Error HTTP! estado: ${response.status}. Asegúrese de que 'dados_produtos.json' esté en la misma carpeta.`);
             }
-            const json = await response.json();
+            const rawData = await response.json();
 
-            if (!Array.isArray(json) || json.length === 0) {
+            if (!Array.isArray(rawData) || rawData.length === 0) {
                 throw new Error("El archivo JSON está vacío o no es un array de objetos.");
             }
 
-            dadosPlanilha = json.map(row => {
+            dadosProdutos = rawData.map(row => {
                 const produto = {
-                    // AJUSTADO PARA CORRESPONDER ÀS CHAVES DO SEU JSON
-                    codigo: String(row['cod.']),       // Chave do JSON 'cod.' (minúsculo e com ponto)
-                    custo: parseFloat(row['Custo']),   // Chave do JSON 'Custo' (com 'C' maiúsculo)
-                    nome: row['Mercadoria']            // Chave do JSON 'Mercadoria' (com 'M' maiúsculo)
+                    codigo: String(row['cod.']),
+                    custo: parseFloat(row['Custo']),
+                    nome: row['Mercadoria']
                 };
 
-                // AJUSTADO PARA LIDAR COM AS CHAVES DE MARGEM DO SEU JSON
                 for (let i = 1; i <= 20; i++) {
                     let margemValue;
-                    // Tenta o formato "X parcela" (ex: "1 parcela", "2 parcela")
-                    let key = `${i} parcela`;
-                    if (row[key] !== undefined) {
-                        margemValue = parseFloat(row[key]);
+                    let keyLowercase = `${i} parcela`;
+                    let keyUppercase = `${i} PARCELA`;
+                    let keySpecific = `parcela ${i}`;
+
+                    if (row[keyLowercase] !== undefined && row[keyLowercase] !== '') {
+                        margemValue = parseFloat(row[keyLowercase]);
+                    } else if (row[keyUppercase] !== undefined && row[keyUppercase] !== '') {
+                        margemValue = parseFloat(row[keyUppercase]);
+                    } else if (row[keySpecific] !== undefined && row[keySpecific] !== '') {
+                        margemValue = parseFloat(row[keySpecific]);
                     } else {
-                        // Tenta o formato "X PARCELA" (ex: "3 PARCELA")
-                        key = `${i} PARCELA`;
-                        if (row[key] !== undefined) {
-                            margemValue = parseFloat(row[key]);
-                        } else if (i === 1 && row['parcela 1'] !== undefined) {
-                            // Tenta o formato "parcela 1" (para o caso específico do primeiro item)
-                            margemValue = parseFloat(row['parcela 1']);
-                        }
+                        margemValue = 0;
                     }
                     
                     produto[`margem_${i}`] = (margemValue !== undefined && !isNaN(margemValue)) ? margemValue : 0;
@@ -439,22 +524,22 @@
                 return produto;
             });
 
-            loadingIndicator.classList.add('hidden'); // Esconde o indicador
-            fileNameSpan.innerText = 'Datos cargados con éxito.'; // Mensagem de sucesso
-            showModal('Éxito', '¡Datos de productos cargados con éxito!');
+            loadingIndicator.classList.add('hidden');
+            fileNameSpan.innerText = 'Datos cargados con éxito de dados_produtos.json.';
+            showModal('Éxito', '¡Datos de productos cargados con éxito de dados_produtos.json!');
 
             document.querySelectorAll('[id^=nome_]').forEach((selectElement, i) => {
                 const currentSelectedValue = selectElement.value;
                 selectElement.innerHTML = `<option value="">Seleccione un producto</option>` +
-                    dadosPlanilha.map(p => `<option value="${p.codigo}">${p.codigo} - ${p.nome}</option>`).join('');
+                    dadosProdutos.map(p => `<option value="${p.codigo}">${p.codigo} - ${p.nome}</option>`).join('');
                 selectElement.value = currentSelectedValue;
                 atualizarCusto(selectElement, i);
             });
 
         } catch (error) {
-            loadingIndicator.classList.add('hidden'); // Esconde o indicador
-            fileNameSpan.innerText = 'Error al cargar datos.'; // Mensagem de erro
-            showModal('Error al Cargar Datos', `Ocurrió un error al cargar los datos: ${error.message}. Por favor, verifique el formato de su archivo JSON.`);
+            loadingIndicator.classList.add('hidden');
+            fileNameSpan.innerText = 'Error al cargar datos del archivo JSON.';
+            showModal('Error al Cargar Datos', `Ocurrió un error al cargar los datos: ${error.message}. Asegúrese de que 'dados_produtos.json' exista y sea un JSON válido.`);
             console.error("Error loading product data:", error);
         }
     }
