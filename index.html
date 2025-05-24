@@ -426,8 +426,8 @@
           doc.text(String(prod.qtd), colX[1] + 2, y + 5);
           doc.text(String(op.parcelas), colX[2] + 2, y + 5);
           doc.text(`Gs ${formatar(valorParcela)}`, colX[3] + 2, y + 5);
-          y += 7;
-
+          y += 10; // <<--- AQUI ESTÁ A ALTERAÇÃO: Aumentamos o espaçamento entre as linhas da tabela
+          
           doc.line(colX[0], y, colX[0] + colWidth[0] + colWidth[1] + colWidth[2] + colWidth[3], y);
         });
 
