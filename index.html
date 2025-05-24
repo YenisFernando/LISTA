@@ -222,9 +222,28 @@
             console.error(`Product info not found for code: ${prod.codigo}`);
             return; // Skip if product info is missing
           }
-          const margemKey = `margem_${op.parcelas}`;
-          const margem = info[margemKey] !== undefined ? parseFloat(info[margemKey]) : 0; // Get margin for specific installment, default to 0
+          // AQUI ESTÁ A PARTE CRÍTICA PARA AS MARGENS:
+          // Agora, as chaves das margens são "1 parcela", "2 parcela", "3 PARCELA", etc.
+          // Precisamos normalizar o nome da chave para buscar no JSON.
+          let margemKeyFromJSON = `${op.parcelas} parcela`; // Formato base
+          // Tentamos a chave exata primeiro (ex: "1 parcela")
+          let margem = info[margemKeyFromJSON] !== undefined ? parseFloat(info[margemKeyFromJSON]) : undefined;
           
+          // Se não encontrou, tenta com maiúsculas (ex: "3 PARCELA")
+          if (margem === undefined) {
+              margemKeyFromJSON = `${op.parcelas} PARCELA`;
+              margem = info[margemKeyFromJSON] !== undefined ? parseFloat(info[margemKeyFromJSON]) : undefined;
+          }
+          // Se não encontrou, tenta a variação "parcela 1" (para o caso específico do primeiro item)
+          if (margem === undefined && op.parcelas === 1) {
+              margemKeyFromJSON = `parcela ${op.parcelas}`;
+              margem = info[margemKeyFromJSON] !== undefined ? parseFloat(info[margemKeyFromJSON]) : undefined;
+          }
+          
+          // Se ainda assim não encontrou, assume 0
+          margem = margem !== undefined && !isNaN(margem) ? margem : 0;
+
+
           const total = prod.custo * prod.qtd;
           const totalComMargem = total * (1 + margem / 100);
           const valorParcela = totalComMargem / op.parcelas;
@@ -319,8 +338,20 @@
             console.error(`Product info not found for code: ${prod.codigo}`);
             return;
           }
-          const margemKey = `margem_${op.parcelas}`;
-          const margem = info[margemKey] !== undefined ? parseFloat(info[margemKey]) : 0;
+          // AQUI TAMBÉM AJUSTAMOS PARA O PDF
+          let margemKeyFromJSON = `${op.parcelas} parcela`;
+          let margem = info[margemKeyFromJSON] !== undefined ? parseFloat(info[margemKeyFromJSON]) : undefined;
+          
+          if (margem === undefined) {
+              margemKeyFromJSON = `${op.parcelas} PARCELA`;
+              margem = info[margemKeyFromJSON] !== undefined ? parseFloat(info[margemKeyFromJSON]) : undefined;
+          }
+          if (margem === undefined && op.parcelas === 1) {
+              margemKeyFromJSON = `parcela ${op.parcelas}`;
+              margem = info[margemKeyFromJSON] !== undefined ? parseFloat(info[margemKeyFromJSON]) : undefined;
+          }
+          margem = margem !== undefined && !isNaN(margem) ? margem : 0;
+
 
           const total = prod.custo * prod.qtd;
           const totalComMargem = total * (1 + margem / 100);
@@ -366,9 +397,6 @@
         loadingIndicator.classList.remove('hidden'); // Mostra o indicador de carregamento
 
         try {
-            // *** IMPORTANTE: Verifique o caminho do seu arquivo JSON ***
-            // Se 'dados_produtos.json' estiver na mesma pasta do index.html, use assim.
-            // Se estiver em uma subpasta (ex: 'data/dados_produtos.json'), use o caminho completo.
             const response = await fetch('dados_produtos.json');
 
             if (!response.ok) {
@@ -376,27 +404,37 @@
             }
             const json = await response.json();
 
-            // *** ESTA É A PARTE AJUSTADA PARA SEUS CABEÇALHOS DO EXCEL ***
-            // Verifica o formato dos dados recebidos no JSON
             if (!Array.isArray(json) || json.length === 0) {
                 throw new Error("El archivo JSON está vacío o no es un array de objetos.");
             }
 
             dadosPlanilha = json.map(row => {
-                // Adapte as chaves (nomes das propriedades) para corresponder aos seus cabeçalhos do Excel
-                // Lembre-se que as chaves JSON são sensíveis a maiúsculas/minúsculas e caracteres especiais.
                 const produto = {
-                    // Usamos colchetes para acessar chaves com '.' (ex: 'COD.')
-                    codigo: String(row['COD.']),       // Mapeia para o cabeçalho 'COD.'
-                    custo: parseFloat(row['CUSTO']),   // Mapeia para o cabeçalho 'CUSTO'
-                    nome: row['MERCADERIA']            // Mapeia para o cabeçalho 'MERCADERIA'
+                    // AJUSTADO PARA CORRESPONDER ÀS CHAVES DO SEU JSON
+                    codigo: String(row['cod.']),       // Chave do JSON 'cod.' (minúsculo e com ponto)
+                    custo: parseFloat(row['Custo']),   // Chave do JSON 'Custo' (com 'C' maiúsculo)
+                    nome: row['Mercadoria']            // Chave do JSON 'Mercadoria' (com 'M' maiúsculo)
                 };
 
-                // Coleta as margens, assumindo que as chaves no JSON são 'MARGEM_1', 'MARGEM_2', etc.
-                for (let i = 1; i <= 20; i++) { // Loop para até 20 margens
-                    const margemKey = `MARGEM_${i}`; // Constrói a chave esperada no JSON (ex: 'MARGEM_1')
-                    // Acessa a propriedade no objeto 'row' usando a chave construída
-                    produto[`margem_${i}`] = parseFloat(row[margemKey]) || 0;
+                // AJUSTADO PARA LIDAR COM AS CHAVES DE MARGEM DO SEU JSON
+                for (let i = 1; i <= 20; i++) {
+                    let margemValue;
+                    // Tenta o formato "X parcela" (ex: "1 parcela", "2 parcela")
+                    let key = `${i} parcela`;
+                    if (row[key] !== undefined) {
+                        margemValue = parseFloat(row[key]);
+                    } else {
+                        // Tenta o formato "X PARCELA" (ex: "3 PARCELA")
+                        key = `${i} PARCELA`;
+                        if (row[key] !== undefined) {
+                            margemValue = parseFloat(row[key]);
+                        } else if (i === 1 && row['parcela 1'] !== undefined) {
+                            // Tenta o formato "parcela 1" (para o caso específico do primeiro item)
+                            margemValue = parseFloat(row['parcela 1']);
+                        }
+                    }
+                    
+                    produto[`margem_${i}`] = (margemValue !== undefined && !isNaN(margemValue)) ? margemValue : 0;
                 }
                 return produto;
             });
@@ -405,30 +443,26 @@
             fileNameSpan.innerText = 'Datos cargados con éxito.'; // Mensagem de sucesso
             showModal('Éxito', '¡Datos de productos cargados con éxito!');
 
-            // Esta parte re-renderiza as opções de produtos se já houver produtos adicionados
-            // Garante que o selectbox de produtos seja preenchido ao carregar a página
             document.querySelectorAll('[id^=nome_]').forEach((selectElement, i) => {
-                const currentSelectedValue = selectElement.value; // Preserva a seleção atual
+                const currentSelectedValue = selectElement.value;
                 selectElement.innerHTML = `<option value="">Seleccione un producto</option>` +
                     dadosPlanilha.map(p => `<option value="${p.codigo}">${p.codigo} - ${p.nome}</option>`).join('');
-                selectElement.value = currentSelectedValue; // Restaura a seleção
-                atualizarCusto(selectElement, i); // Atualiza o custo com base na seleção restaurada
+                selectElement.value = currentSelectedValue;
+                atualizarCusto(selectElement, i);
             });
-
 
         } catch (error) {
             loadingIndicator.classList.add('hidden'); // Esconde o indicador
             fileNameSpan.innerText = 'Error al cargar datos.'; // Mensagem de erro
-            showModal('Error al Cargar Datos', `Ocurrió un error al cargar los datos: ${error.message}.`);
+            showModal('Error al Cargar Datos', `Ocurrió un error al cargar los datos: ${error.message}. Por favor, verifique el formato de su archivo JSON.`);
             console.error("Error loading product data:", error);
         }
     }
 
-    // Altere o window.onload para chamar a nova função de carregamento JSON
     window.onload = function() {
-        carregarDadosProdutos(); // Chama a função para carregar os dados JSON automaticamente
-        adicionarProduto(); // Adiciona o primeiro produto ao carregar a página
-        adicionarParcela(); // Adiciona a primeira opção de parcela ao carregar a página
+        carregarDadosProdutos();
+        adicionarProduto();
+        adicionarParcela();
     };
   </script>
 </body>
