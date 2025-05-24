@@ -16,9 +16,7 @@
       -moz-osx-font-smoothing: grayscale;
     }
     /* Hide default file input button and style its label */
-    input[type="file"] {
-      display: none;
-    }
+    /* input[type="file"] { display: none; } */ /* Não é mais necessário */
     .custom-file-upload {
       @apply inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 cursor-pointer;
     }
@@ -29,16 +27,9 @@
     <h1 class="text-4xl font-extrabold text-center text-gray-900 mb-8">Simulador de Crédito</h1>
 
     <div class="mb-6">
-      <label for="arquivoExcel" class="block text-lg font-semibold text-gray-800 mb-2">Cargar Hoja de Cálculo de Productos (.xlsx)</label>
-      <input type="file" id="arquivoExcel" accept=".xlsx">
-      <label for="arquivoExcel" class="custom-file-upload">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
-          <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" />
-        </svg>
-        Seleccionar Archivo Excel
-      </label>
-      <span id="fileName" class="ml-3 text-gray-600">Ningún archivo seleccionado</span>
-      <div id="loadingIndicator" class="hidden mt-2 text-blue-600 font-medium">Cargando hoja de cálculo...</div>
+      <label for="statusCarga" class="block text-lg font-semibold text-gray-800 mb-2">Estado de Carga de Datos:</label>
+      <span id="fileName" class="ml-3 text-gray-600">Cargando datos...</span>
+      <div id="loadingIndicator" class="hidden mt-2 text-blue-600 font-medium">Cargando datos...</div>
     </div>
 
     <h3 class="text-2xl font-semibold text-gray-800 mb-4 mt-6">Productos</h3>
@@ -88,7 +79,7 @@
     let indexParcela = 0;
     let produtos = [];
     let opcoesParcelas = [];
-    let dadosPlanilha = [];
+    let dadosPlanilha = []; // Armazenará os dados carregados do JSON
 
     // Function to show custom modal
     function showModal(title, message) {
@@ -369,72 +360,69 @@
       showModal('PDF Generado', '¡El archivo "presupuesto.pdf" fue generado con éxito!');
     }
 
-    // Event listener for Excel file upload
-    document.getElementById("arquivoExcel").addEventListener("change", function (e) {
-      const file = e.target.files[0];
-      const fileNameSpan = document.getElementById('fileName');
-      const loadingIndicator = document.getElementById('loadingIndicator');
+    // Nova função para carregar os dados JSON automaticamente
+    async function carregarDadosProdutos() {
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        const fileNameSpan = document.getElementById('fileName');
 
-      if (!file) {
-        fileNameSpan.innerText = 'Ningún archivo seleccionado';
-        return;
-      }
+        fileNameSpan.innerText = 'Cargando datos predefinidos...'; // Mensagem inicial
+        loadingIndicator.classList.remove('hidden'); // Mostra o indicador de carregamento
 
-      fileNameSpan.innerText = file.name;
-      loadingIndicator.classList.remove('hidden'); // Show loading indicator
-
-      const reader = new FileReader();
-      reader.onload = function (e) {
         try {
-          const data = new Uint8Array(e.target.result);
-          const workbook = XLSX.read(data, { type: "array" });
-          const sheet = workbook.Sheets[workbook.SheetNames[0]];
-          const json = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+            // *** IMPORTANTE: Verifique o caminho do seu arquivo JSON ***
+            // Se 'dados_produtos.json' estiver na mesma pasta do index.html, use assim.
+            // Se estiver em uma subpasta (ex: 'data/dados_produtos.json'), use o caminho completo.
+            const response = await fetch('dados_produtos.json');
 
-          // Assuming header row is row 0, data starts from row 1
-          dadosPlanilha = json.slice(1).map(row => {
-            const produto = {
-              codigo: row[0], // Column A
-              custo: parseFloat(row[1]), // Column B
-              nome: row[2] // Column C
-            };
-            // Margins start from Column D (index 3)
-            for (let i = 1; i <= 20; i++) {
-              // Ensure we don't go out of bounds for rows that might have fewer columns
-              produto[`margem_${i}`] = parseFloat(row[2 + i]) || 0;
+            if (!response.ok) {
+                throw new Error(`Error HTTP! estado: ${response.status}`);
             }
-            return produto;
-          });
+            const json = await response.json();
 
-          loadingIndicator.classList.add('hidden'); // Hide loading indicator
-          showModal('Éxito', '¡Hoja de cálculo cargada con éxito!');
-          // Re-render product select options if any products are already added
-          document.querySelectorAll('[id^=nome_]').forEach((selectElement, i) => {
-              const currentSelectedValue = selectElement.value; // Preserve current selection
-              selectElement.innerHTML = `<option value="">Seleccione un producto</option>` +
-                  dadosPlanilha.map(p => `<option value="${p.codigo}">${p.codigo} - ${p.nome}</option>`).join('');
-              selectElement.value = currentSelectedValue; // Restore selection
-              atualizarCusto(selectElement, i); // Update cost based on restored selection
-          });
+            // *** Adapte esta parte conforme a estrutura do SEU JSON ***
+            // Assumimos que o JSON é um array de objetos, onde cada objeto é uma linha da planilha.
+            // Ex: [{ "codigo": "001", "custo": 100, "nome": "Produto A", "margem_1": 10, "margem_2": 15 }, ...]
+            dadosPlanilha = json.map(row => {
+                const produto = {
+                    codigo: row.codigo,
+                    custo: parseFloat(row.custo),
+                    nome: row.nome
+                };
+                // Coleta as margens, assumindo que as chaves são margem_1, margem_2, etc.
+                for (let i = 1; i <= 20; i++) { // Se tiver mais parcelas que 20, ajuste este loop
+                    produto[`margem_${i}`] = parseFloat(row[`margem_${i}`]) || 0;
+                }
+                return produto;
+            });
+
+            loadingIndicator.classList.add('hidden'); // Esconde o indicador
+            fileNameSpan.innerText = 'Datos cargados con éxito.'; // Mensagem de sucesso
+            showModal('Éxito', '¡Datos de productos cargados con éxito!');
+
+            // Esta parte re-renderiza as opções de produtos se já houver produtos adicionados
+            // Garante que o selectbox de produtos seja preenchido ao carregar a página
+            document.querySelectorAll('[id^=nome_]').forEach((selectElement, i) => {
+                const currentSelectedValue = selectElement.value; // Preserva a seleção atual
+                selectElement.innerHTML = `<option value="">Seleccione un producto</option>` +
+                    dadosPlanilha.map(p => `<option value="${p.codigo}">${p.codigo} - ${p.nome}</option>`).join('');
+                selectElement.value = currentSelectedValue; // Restaura a seleção
+                atualizarCusto(selectElement, i); // Atualiza o custo com base na seleção restaurada
+            });
+
 
         } catch (error) {
-          loadingIndicator.classList.add('hidden'); // Hide loading indicator
-          showModal('Error al Cargar Hoja de Cálculo', `Ocurrió un error al leer la hoja de cálculo: ${error.message}. Verifique el formato del archivo.`);
-          console.error("Error reading Excel file:", error);
+            loadingIndicator.classList.add('hidden'); // Esconde o indicador
+            fileNameSpan.innerText = 'Error al cargar datos.'; // Mensagem de erro
+            showModal('Error al Cargar Datos', `Ocurrió un error al cargar los datos: ${error.message}.`);
+            console.error("Error loading product data:", error);
         }
-      };
-      reader.onerror = function (error) {
-        loadingIndicator.classList.add('hidden'); // Hide loading indicator
-        showModal('Error de Lectura', 'No fue posible leer el archivo. Intente de nuevo.');
-        console.error("FileReader error:", error);
-      };
-      reader.readAsArrayBuffer(file);
-    });
+    }
 
-    // Initial product and installment options when page loads
+    // Altere o window.onload para chamar a nova função de carregamento JSON
     window.onload = function() {
-        adicionarProduto();
-        adicionarParcela();
+        carregarDadosProdutos(); // Chama a função para carregar os dados JSON automaticamente
+        adicionarProduto(); // Adiciona o primeiro produto ao carregar a página
+        adicionarParcela(); // Adiciona a primeira opção de parcela ao carregar a página
     };
   </script>
 </body>
