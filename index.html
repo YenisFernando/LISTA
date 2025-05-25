@@ -21,10 +21,31 @@
   </style>
 </head>
 <body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
-  <div class="container bg-white shadow-xl rounded-xl p-8 md:p-10 lg:p-12 max-w-4xl w-full mx-auto my-8">
+
+  <div id="loginScreen" class="bg-white shadow-xl rounded-xl p-8 md:p-10 lg:p-12 max-w-md w-full mx-auto my-8">
+    <div class="flex justify-center mb-8">
+        <img src="logo.png" alt="Logo de la Empresa" class="h-24 max-w-full"> 
+    </div>
+    <h2 class="text-3xl font-extrabold text-center text-gray-900 mb-6">Iniciar Sesión</h2>
+    <div class="mb-4">
+      <label for="username" class="block text-sm font-medium text-gray-700 mb-1">Usuario</label>
+      <input type="text" id="username" class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-base" placeholder="admin">
+    </div>
+    <div class="mb-6">
+      <label for="password" class="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>
+      <input type="password" id="password" class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-base" placeholder="********">
+    </div>
+    <div id="loginError" class="text-red-600 text-center mb-4 hidden">Usuario o contraseña incorrectos.</div>
+    <button onclick="performLogin()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg shadow-md transition duration-200 ease-in-out">
+      Entrar
+    </button>
+  </div>
+
+  <div id="mainContent" class="container bg-white shadow-xl rounded-xl p-8 md:p-10 lg:p-12 max-w-4xl w-full mx-auto my-8 hidden">
     
     <div class="flex justify-center mb-8">
-        <img src="logo.png" alt="Logo de la Empresa" class="h-20 max-w-full"> </div>
+        <img src="logo.png" alt="Logo de la Empresa" class="h-20 max-w-full"> 
+    </div>
     
     <h1 class="text-4xl font-extrabold text-center text-gray-900 mb-8">Simulador de Crédito</h1>
 
@@ -128,6 +149,11 @@
     const MAX_PARCELAS_EDIT = 20; // Define o número máximo de parcelas para edição
     const SENHA_MODO_EDICAO = "1234567"; // Senha para entrar no modo de edição
     const MARGEM_AL_CONTADO = 20; // Margem fixa para "Al Contado"
+
+    // Credenciais de login
+    const USUARIO_LOGIN = "admin";
+    const SENHA_LOGIN = "Showsa@2024!";
+
 
     // Variável global para armazenar a imagem do logo carregada para o PDF
     let logoDataUrl = ''; 
@@ -469,7 +495,7 @@
           // Calcula a diferença de altura para centralizar o texto nas outras colunas
           const totalTextHeight = (splitText.length * textHeight) + ((splitText.length - 1) * lineSpacing);
           const rowHeight = Math.max(10, totalTextHeight + 4); // Altura mínima + margem interna
-          const verticalCenterOffset = (rowHeight - textHeight) / 2;
+          const verticalCenterOffset = (rowHeight - (textHeight * splitText.length + (splitText.length -1)*lineSpacing)) / 2 + textHeight; // Ajusta para o centro da primeira linha
 
           doc.text(String(prod.qtd), colXAlContado[1] + 2, y + verticalCenterOffset); 
           doc.text(`Gs ${formatar(totalComMargem)}`, colXAlContado[2] + 2, y + verticalCenterOffset); 
@@ -489,7 +515,7 @@
         doc.setFont("helvetica", "bold");
         doc.setFontSize(12);
         y += 5;
-        doc.text(`Total Al Contado Gs ${formatar(totalAlContado)}`, startX, y); // Centraliza o total com a tabela
+        doc.text(`Total Al Contado Gs ${formatar(totalAlContado)}`, startX, y); 
         y += 15;
       }
 
@@ -514,7 +540,7 @@
 
         doc.setFont("helvetica", "bold");
         doc.setFontSize(16);
-        doc.text(`${op.parcelas} Cuotas`, startX, y); // Centraliza o subtítulo com a tabela
+        doc.text(`${op.parcelas} Cuotas`, startX, y); 
         y += 10;
 
         doc.setFont("helvetica", "bold");
@@ -587,8 +613,8 @@
           
           // Calcula a diferença de altura para centralizar o texto nas outras colunas
           const totalTextHeight = (splitText.length * textHeight) + ((splitText.length - 1) * lineSpacing);
-          const rowHeight = Math.max(10, totalTextHeight + 4); // Altura mínima + margem interna
-          const verticalCenterOffset = (rowHeight - textHeight) / 2;
+          const rowHeight = Math.max(10, totalTextHeight + 4); 
+          const verticalCenterOffset = (rowHeight - (textHeight * splitText.length + (splitText.length -1)*lineSpacing)) / 2 + textHeight; 
 
           doc.text(String(prod.qtd), colX[1] + 2, y + verticalCenterOffset); 
           doc.text(String(op.parcelas), colX[2] + 2, y + verticalCenterOffset); 
@@ -609,7 +635,7 @@
         doc.setFont("helvetica", "bold");
         doc.setFontSize(12);
         y += 5;
-        doc.text(`Total ${op.parcelas} x Gs ${formatar(totalParcela)}`, startX, y); // Centraliza o total com a tabela
+        doc.text(`Total ${op.parcelas} x Gs ${formatar(totalParcela)}`, startX, y); 
         y += 15;
       });
 
@@ -805,7 +831,7 @@
 
             loadingIndicator.classList.add('hidden');
             fileNameSpan.innerText = 'Datos cargados con éxito de dados_produtos.json.';
-            showModal('Éxito', '¡Datos de productos cargados con éxito de dados_produtos.json!');
+            // showModal('Éxito', '¡Datos de productos cargados con éxito de dados_produtos.json!'); // Removido para não aparecer no login
 
             // Atualiza os selects de produto após carregar os dados
             document.querySelectorAll('[id^=nome_]').forEach((selectElement, i) => {
@@ -824,12 +850,48 @@
         }
     }
 
-    window.onload = async function() {
-        await carregarDadosProdutos();
-        adicionarProduto();
-        // Pode adicionar uma parcela padrão ao carregar, ou deixar o usuário adicionar
-        adicionarParcela(); 
-        logoDataUrl = await loadLogoForPDF();
+    // --- Lógica da Tela de Login ---
+    function performLogin() {
+        const usernameInput = document.getElementById('username').value;
+        const passwordInput = document.getElementById('password').value;
+        const loginErrorDiv = document.getElementById('loginError');
+
+        if (usernameInput === USUARIO_LOGIN && passwordInput === SENHA_LOGIN) {
+            loginErrorDiv.classList.add('hidden');
+            document.getElementById('loginScreen').classList.add('hidden');
+            document.getElementById('mainContent').classList.remove('hidden');
+            // Carrega os dados do JSON e o logo após o login
+            carregarDadosProdutos();
+            adicionarProduto();
+            adicionarParcela();
+            loadLogoForPDF().then(dataUrl => {
+                logoDataUrl = dataUrl;
+            });
+        } else {
+            loginErrorDiv.classList.remove('hidden');
+        }
+    }
+
+    // Adiciona evento de teclado para o Enter no login
+    document.addEventListener('DOMContentLoaded', () => {
+        document.getElementById('username').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                performLogin();
+            }
+        });
+        document.getElementById('password').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                performLogin();
+            }
+        });
+    });
+
+
+    // Ao carregar a página, exibe a tela de login
+    window.onload = function() {
+        document.getElementById('loginScreen').classList.remove('hidden');
+        document.getElementById('mainContent').classList.add('hidden');
+        document.getElementById('username').focus(); // Foca no campo de usuário
     };
   </script>
 </body>
